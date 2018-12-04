@@ -48,7 +48,7 @@ ifneq ($(BACKEND), pgplot)
    PLOTLIB= giza-fortran.F90 plotlib_giza.f90
    PGPLOTLIBS = -L$(GIZA_DIR)/lib -lgiza $(CAIRO_LIBS)
    CFLAGS= -fPIC -Wall -Wextra -O3 -g
-   CC = gcc
+   CC = gcc -std=gnu99
 else
 #-- P G P L O T --
    PLOTLIB= plotlib_pgplot.f90
@@ -104,7 +104,7 @@ PREFIX=/usr/local/
 # default C compiler
 #
 ifndef CC
-CC = gcc
+CC = gcc -std=gnu99
 endif
 ifndef CXX
 CXX = g++
@@ -275,7 +275,7 @@ ifeq ($(SYSTEM),cody)
     ENDIANFLAGLITTLE= -fconvert=little-endian
     SNFLAGS= -L$(HOME)/tree16/Objfiles/g5 -lsw
     CFLAGS = -g -O2 -Wall -I$(HOME)/tree16/include -fbounds-check
-    CC = gcc
+    CC = gcc -std=gnu99
     KNOWN_SYSTEM=yes
 endif
 
