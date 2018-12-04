@@ -1,6 +1,6 @@
 !-----------------------------------------------------------------
 !
-!  This file is (or was) part of SPLASH, a visualisation tool 
+!  This file is (or was) part of SPLASH, a visualisation tool
 !  for Smoothed Particle Hydrodynamics written by Daniel Price:
 !
 !  http://users.monash.edu.au/~dprice/splash
@@ -46,23 +46,25 @@
 ! npartoftype(1:6,maxstep) : number of particles of each type in each timestep
 !
 ! time(maxstep)       : time at each step
-! gamma(maxstep)      : gamma at each step 
+! gamma(maxstep)      : gamma at each step
 !
-! most of these values are stored in global arrays 
+! most of these values are stored in global arrays
 ! in the module 'particle_data'
 !-------------------------------------------------------------------------
+
 
 subroutine read_data(rootname,indexstart,ipos,nstepsread)
   use particle_data, only:dat,time,npartoftype,gamma,maxpart
   use params
   use settings_data, only:ndim,ndimV,ncolumns
   use mem_allocation, only:alloc
-  use labels, only:label,ih,ipmass,irho
+  use labels, only:label,ih,ipmass,irho,imetals,itform,ipot,tipsylabel,ncolextra
   use exact, only:hfact
   implicit none
   integer, intent(in) :: indexstart,ipos
   integer, intent(out) :: nstepsread
   character(len=*), intent(in) :: rootname
+  !character(len=10), dimension(maxplot) :: tipsylabel
   integer, parameter :: iunit = 16
   integer :: j,ierr
   integer :: nprint,ngas,ndark,nptmass,npart_max,nstep_max
@@ -75,49 +77,63 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
   nstepsread = 0
   nstep_max = 0
   npart_max = maxpart
-  dumpfile = trim(rootname)   
+  ncolextra=0
+  dumpfile = trim(rootname)
   !
   !--check if first data file exists
   !
   inquire(file=dumpfile,exist=iexist)
   if (.not.iexist) then
-     print "(a)",' *** error: '//trim(dumpfile)//': file not found ***'    
+     print "(a)",' *** error: '//trim(dumpfile)//': file not found ***'
      return
   endif
 
   nstep_max = max(nstep_max,indexstart,1)
   j = indexstart
   nstepsread = 0
-  
+
   write(*,"(26('>'),1x,a,1x,26('<'))") trim(dumpfile)
+
+  !
+  !--Check if .label exist (if extra column files exist)
+  !
+  inquire(file=''//trim(dumpfile)//'.label',exist=iexist)
+  if (iexist) then
+     open(unit=iunit,file=''//trim(dumpfile)//".label",status='old',form='formatted',iostat=ierr)
+     call read_labelfile(iunit,ierr,1)
+  endif
+  if (.not.iexist) then
+     print "(a)",' No label file included or no extra data columns'
+  endif
+
   !
   !--determine whether file is binary or ascii and open it
   !
   inquire(file=dumpfile,form=fmt)
   !print*,'fmt = ',fmt
-  
+
   select case(trim(adjustl(fmt)))
   case('UNFORMATTED')
      iambinaryfile = 1
-#ifdef __INTEL_COMPILER
-#if __INTEL_COMPILER<1010
+!#ifdef __INTEL_COMPILER
+!#if __INTEL_COMPILER<1010
      !--this is how stream access is implemented for ifort 9 and lower
-     open(unit=iunit,file=dumpfile,status='old',form='unformatted',recordtype='stream',iostat=ierr)  
-#else
+!     open(unit=iunit,file=dumpfile,status='old',form='unformatted',recordtype='stream',iostat=ierr)
+!#else
+!     open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
+!#endif
+!#else
      open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
-#endif
-#else
-     open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)  
-#endif
+!#endif
   case('FORMATTED')
      iambinaryfile = 0
-     open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)  
+     open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)
   case default
      !--if compiler cannot distinguish the two, try ascii first, then binary
      iambinaryfile = -1
-     open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)  
+     open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)
   end select
-  
+
   if (ierr /= 0) then
      print "(a)",'*** ERROR OPENING '//trim(dumpfile)//' ***'
      return
@@ -136,21 +152,21 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
         if (ierr.eq.0) then
            !--if successful ascii header read, file is ascii
            iambinaryfile = 0
-           print "(a)",' reading ascii tipsy format '   
+           print "(a)",' reading ascii tipsy format '
         else
            !--otherwise, close ascii file, and assume file is binary
            close(unit=iunit)
            iambinaryfile = 1
-#ifdef __INTEL_COMPILER
-#if __INTEL_COMPILER<1010
+!#ifdef __INTEL_COMPILER
+!#if __INTEL_COMPILER<1010
      !--this is how stream access is implemented for ifort 9 and lower
-          open(unit=iunit,file=dumpfile,status='old',form='unformatted',recordtype='stream',iostat=ierr)  
-#else
-          open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
-#endif
-#else
-           open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)  
-#endif
+!          open(unit=iunit,file=dumpfile,status='old',form='unformatted',recordtype='stream',iostat=ierr)
+!#else
+!          open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
+!#endif
+!#else
+           open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
+!#endif
            print "(a)",' reading binary tipsy format '
            call read_tipsyheader_binary(iunit,ierr)
         endif
@@ -168,7 +184,7 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
   print "(4(a,i10))",' ntot: ',nprint,' ngas: ',ngas,' ndark: ',ndark,' nstar: ',nptmass
 
   ndimV = ndim
-  ncol = 2*ndim + 4
+  ncol = 2*ndim + 7+ncolextra
   ncolumns = ncol
   !
   !--allocate memory
@@ -230,7 +246,7 @@ subroutine read_tipsyheader_ascii(iunit,ierr,iwarn)
  implicit none
  integer, intent(in) :: iunit,iwarn
  integer, intent(out) :: ierr
- 
+
  read(iunit,*,end=55,iostat=ierr) nprint,ngas,nptmass
  read(iunit,*,end=55,iostat=ierr) ndim
  read(iunit,*,end=55,iostat=ierr) timei
@@ -241,14 +257,14 @@ subroutine read_tipsyheader_ascii(iunit,ierr,iwarn)
     ierr = 2
     return
  endif
- 
+
  return
 
 55 continue
  if (iwarn.ge.0) print "(a)",' ERROR: end of file in ascii header read '
  ierr = -1
  return
-     
+
 end subroutine read_tipsyheader_ascii
 
 !----------------------------------------------------
@@ -263,7 +279,7 @@ subroutine read_tipsyheader_binary(iunitb,ierr)
 
  ierr = 0
  read(iunitb,iostat=ierr,end=55) timedb,nprint,ndim,ngas,ndark,nptmass,ipad
- !print*,'header = ',timedb,nprint,ndim,ngas,ndark,nptmass
+ print*,'header = ',timedb,nprint,ndim,ngas,ndark,nptmass
  timei = real(timedb)
 
  !--check for wrong endianness
@@ -274,7 +290,7 @@ subroutine read_tipsyheader_binary(iunitb,ierr)
     ierr = 2
  endif
  if (ndim.eq.0) ndim = 3
- 
+
  return
 
 55 continue
@@ -284,6 +300,30 @@ subroutine read_tipsyheader_binary(iunitb,ierr)
 
 end subroutine read_tipsyheader_binary
 
+subroutine read_labelfile(iunit,ierr,iwarn)
+ implicit none
+ integer, intent(in) :: iunit,iwarn
+ integer, intent(out) :: ierr
+ integer :: i
+
+ read(iunit,*,end=66,iostat=ierr) ncolextra
+ print *, ncolextra
+ do i=1,ncolextra
+   read(iunit,*,end=66,iostat=ierr) tipsylabel(i)
+   print *, tipsylabel(i)
+ enddo
+
+ return
+
+66 continue
+ if (iwarn.ge.0) print "(a)",' ERROR: end of file in ascii label read '
+ ierr = -1
+ return
+
+
+end subroutine read_labelfile
+
+
 !----------------------------------------------------
 ! ascii body read
 !----------------------------------------------------
@@ -292,7 +332,7 @@ subroutine read_tipsybody_ascii(iunit,ierr,nread)
  integer, intent(in) :: iunit
  integer, intent(out) :: ierr, nread
  integer :: i,ic,icol,nerr
- 
+
  !--pmass,x,y,z,vx,vy,vz
  do ic=1,2*ndim+1
     nerr = 0
@@ -315,7 +355,7 @@ subroutine read_tipsybody_ascii(iunit,ierr,nread)
  !--h dark matter
  if (ndark.gt.0) then
     nerr = 0
-    do i=ngas+1,ngas+ndark-1
+    do i=ngas+1,ngas+ndark
        read(iunit,*,end=44,iostat=ierr) dat(i,ih,j)
        if (ierr /= 0) nerr = nerr + 1
     enddo
@@ -330,8 +370,8 @@ subroutine read_tipsybody_ascii(iunit,ierr,nread)
     enddo
     if (nerr.gt.0) print *,'*** WARNING: ERRORS READING PTMASS H ON ',nerr,' LINES'
  endif
- !--density, temperature, sph smoothing length
- do icol=2*ndim+2,ncol
+ !--density, temperature, sph smoothing length, metals gas
+ do icol=2*ndim+2,2*ndim+5
     nread = nread + 1
     !print "(1x,a)",trim(label(icol))
     do i=1,ngas
@@ -340,6 +380,29 @@ subroutine read_tipsybody_ascii(iunit,ierr,nread)
     enddo
     if (nerr.gt.0) print *,'*** WARNING: ERRORS READING '//trim(label(icol))//' ON ',nerr,' LINES'
  enddo
+ !--metals and tform starparticles
+ if (nptmass.gt.0) then
+    nerr = 0
+    do i=ngas+ndark+1,ngas+ndark+nptmass
+       read(iunit,*,end=44,iostat=ierr) dat(i,imetals,j)
+       if (ierr /= 0) nerr = nerr + 1
+    enddo
+    nread = nread + 1
+    do i=ngas+ndark+1,ngas+ndark+nptmass
+       read(iunit,*,end=44,iostat=ierr) dat(i,itform,j)
+       if (ierr /= 0) nerr = nerr + 1
+    enddo
+    if (nerr.gt.0) print *,'*** WARNING: ERRORS READING PTMASS H ON ',nerr,' LINES'
+ endif
+!--potential all particles
+   nerr = 0
+   nread = nread + 1
+    do i=1,nprint
+       read(iunit,*,end=44,iostat=ierr) dat(i,ipot,j)
+       if (ierr /= 0) nerr = nerr + 1
+    enddo
+
+    if (nerr.gt.0) print *,'*** WARNING: ERRORS READING PTMASS H ON ',nerr,' LINES'
 
  ierr = 0
  return
@@ -357,16 +420,16 @@ subroutine read_tipsybody_binary(iunitb,ierr,nread)
  integer, intent(out) :: ierr,nread
  integer :: i,nerr
  real :: dummy
- 
  !--gas particles
  nerr = 0
  do i=1,ngas
     !--pmass,x,y,z,vx,vy,vz,rho,temp,h
-    read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:ncolumns,j),dummy,dummy
-    !print*,' gas mass = ',i,dat(i,ipmass,j), ' xyz = ',dat(i,1:ndim,j)
+    read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:ncolumns-1,j)
+    !print*, ' xyz = ',dat(i,1:ncolumns-1,j)
     if (ierr /= 0) nerr = nerr + 1
  enddo
  nread = ncolumns
+ print*, ' nred: ',nread
  if (nerr.gt.0) print *,'*** WARNING: ERRORS READING GAS PARTICLES ON ',nerr,' LINES'
 
  !--dark matter
@@ -374,7 +437,8 @@ subroutine read_tipsybody_binary(iunitb,ierr,nread)
     nerr = 0
     do i=ngas+1,ngas+ndark
        !--only read as far as velocities, then eps as smoothing length
-       read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:2*ndim+1,j),dat(i,ih,j),dummy
+       read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:2*ndim+1,j),dat(i,ih,j), &
+dat(i,ipot,j),dat(i,ipot+1:ncolumns-1,j)
        !print*,' DM mass = ',i,dat(i,ipmass,j)
        if (ierr /= 0) nerr = nerr + 1
     enddo
@@ -386,8 +450,9 @@ subroutine read_tipsybody_binary(iunitb,ierr,nread)
     nerr = 0
     do i=ngas+ndark+1,ngas+ndark+nptmass
        !--only read as far as velocities, then eps as smoothing length
-       read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:2*ndim+1,j),dummy,dummy,dat(i,ih,j),dummy
-       !print*,' star mass = ',i,dat(i,ipmass,j),' xyz = ',dat(i,1:ndim,j),dat(i,ndim+2:2*ndim+1,j),crap,crap,dat(i,ih,j),crap
+       read(iunitb,end=44,iostat=ierr) dat(i,ipmass,j),dat(i,1:ndim,j),dat(i,ndim+2:2*ndim+1,j),dat(i,imetals,j), &
+dat(i,itform,j),dat(i,ih,j),dat(i,ipot,j),dat(i,ipot+1:ncolumns-1,j)
+       !print*,' star mass = ',i,dat(i,ipmass,j)
        if (ierr /= 0) nerr = nerr + 1
     enddo
     if (nerr.gt.0) print *,'*** WARNING: ERRORS READING STAR PARTICLES ON ',nerr,' LINES'
@@ -395,7 +460,7 @@ subroutine read_tipsybody_binary(iunitb,ierr,nread)
 
  ierr = 0
  return
- 
+
 44 continue
  ierr = -1
 
@@ -409,13 +474,14 @@ end subroutine read_data
 
 subroutine set_labels
   use labels, only:label,labelvec,labeltype,iamvec,&
-              ix,ivx,ih,irho,ipmass !,iutherm
+              ix,ivx,ih,irho,ipmass,imetals,itform,ipot,tipsylabel,ncolextra !,iutherm
   use settings_data, only:ndim,ndimV,ntypes,UseTypeInRenderings
   use geometry, only:labelcoord
   !use settings_units, only:units,unitslabel
   implicit none
-  integer :: i
-  
+  integer :: i,ibx,icurlbx
+  ibx=0
+  icurlbx=0
   if (ndim.le.0 .or. ndim.gt.3) then
      print*,'*** ERROR: ndim = ',ndim,' in set_labels ***'
      return
@@ -424,28 +490,56 @@ subroutine set_labels
      print*,'*** ERROR: ndimV = ',ndimV,' in set_labels ***'
      return
   endif
-    
   do i=1,ndim
      ix(i) = i
   enddo
+  print *, ncolextra
   ipmass = ndim + 1
   ivx = ndim + 2
   irho = ivx + ndim
   !iutherm = irho + 1
   label(irho+1) = 'temperature'
   ih = irho + 2
-  
+  imetals = irho+3
+  ipot = irho+4
+
   label(ix(1:ndim)) = labelcoord(1:ndim,1)
   label(ih) = 'h'
   !if (iutherm.gt.0) label(iutherm) = 'temperature'
   label(ipmass) = 'particle mass'
   label(irho) = 'density'
-
+  label(imetals) = 'metals'
+  label(ipot) = 'potential'
+  do i=1,ncolextra
+     label(ipot+i) = tipsylabel(i)
+     if (tipsylabel(i)=='BFieldx') then
+        ibx=ipot+i
+endif
+     if (tipsylabel(i)=='CurlBx') then
+        icurlbx=ipot+i
+endif
+  enddo
+  itform = ipot+ncolextra+1
+  label(itform) = 'tform'
   if (ivx.ne.0) then
      iamvec(ivx:ivx+ndimV-1) = ivx
      labelvec(ivx:ivx+ndimV-1) = 'v'
      do i=1,ndimV
         label(ivx+i-1) = trim(labelvec(ivx))//'\d'//trim(labelcoord(i,1))
+     enddo
+  endif
+  if (ibx.ne.0) then
+     iamvec(ibx:ibx+ndimV-1) = ibx
+     labelvec(ibx:ibx+ndimV-1) = 'B'
+     do i=1,ndimV
+        label(ibx+i-1) = trim(labelvec(ibx))//'\d'//trim(labelcoord(i,1))
+     enddo
+  endif
+  if (icurlbx.ne.0) then
+     iamvec(icurlbx:icurlbx+ndimV-1) = icurlbx
+     labelvec(icurlbx:icurlbx+ndimV-1) = 'CurlB'
+     do i=1,ndimV
+        label(icurlbx+i-1) = trim(labelvec(icurlbx))//'\d'//trim(labelcoord(i,1))
      enddo
   endif
   !
@@ -458,8 +552,8 @@ subroutine set_labels
   UseTypeInRenderings(1) = .true.
   UseTypeInRenderings(2) = .false.
   UseTypeInRenderings(3) = .false.
- 
+
 !-----------------------------------------------------------
 
-  return 
+  return
 end subroutine set_labels
