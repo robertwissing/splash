@@ -66,7 +66,7 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
   character(len=*), intent(in) :: rootname
   !character(len=10), dimension(maxplot) :: tipsylabel
   integer, parameter :: iunit = 16
-  integer :: j,ierr
+  integer :: k,j,ierr
   integer :: nprint,ngas,ndark,nptmass,npart_max,nstep_max
   integer :: ncol,nread,iambinaryfile
   logical :: iexist
@@ -218,6 +218,11 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
   ! for sph particles. In this case we need to create a sensible smoothing length
   ! (and warn people about the evils of using fixed softening lengths for sph particles)
   !
+  do k=1,ncolextra
+     if (tipsylabel(k)=='smoothleng') then
+        dat(1:ngas,ih,j)=dat(1:ngas,ipot+k,j)
+     endif
+  enddo
   if (ngas.ge.0 .and. nread.ge.irho .and. all(abs(dat(1:ngas,ih,j)-dat(1,ih,j)).le.tiny(dat))) then
      print "(a)",'WARNING: fixed softening lengths detected: simulation may contain artificial fragmentation!'
      print "(a,f5.2,a,i1,a)",'       : creating SPH smoothing lengths using h = ',hfact,'*(m/rho)**(1/',ndim,')'
@@ -511,7 +516,12 @@ subroutine set_labels
   label(imetals) = 'metals'
   label(ipot) = 'potential'
   do i=1,ncolextra
+     if (tipsylabel(i)=='smoothleng') then
+        label(ipot+i) = 'h'
+        label(ih) = 'eps'
+     else
      label(ipot+i) = tipsylabel(i)
+endif
      if (tipsylabel(i)=='BFieldx') then
         ibx=ipot+i
 endif
