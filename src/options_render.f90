@@ -37,7 +37,7 @@ module settings_render
  logical :: double_rendering,exact_rendering
  character(len=lenlabel+20) :: projlabelformat
  integer :: iapplyprojformat
- character(len=120) :: rgbfile
+ character(len=240) :: rgbfile
 
  namelist /renderopts/ npix,icolours,ncontours,iplotcont_nomulti, &
    icolour_particles,ColourBarDisp,inormalise_interpolations, &

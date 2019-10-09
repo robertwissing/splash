@@ -169,6 +169,7 @@ subroutine open_analysis(analysistype,required,ncolumns,ndim,ndimV)
     !  (which is not currently implemented).
     !
     required(ivx:ivx+ndimV-1) = .true.
+    print *, iBfirst
     required(iBfirst:iBfirst+ndimV-1) = .true.
     required(iutherm) = .true.
     required(ipmass) = .true.

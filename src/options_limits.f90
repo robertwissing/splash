@@ -69,7 +69,7 @@ subroutine submenu_limits(ichoose)
  integer             :: iaction,ipick,i,index,ierr
  integer             :: itracktypeprev,itrackoffsetprev
 ! real                :: diff, mid, zoom
- character(len=120)  :: transprompt
+ character(len=240)  :: transprompt
  character(len=12)   :: string,string2
  character(len=20)   :: pstring,pstring2
 

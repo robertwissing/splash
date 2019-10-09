@@ -334,7 +334,7 @@ subroutine set_labels
   use asciiread,       only:icoltype,label_orig
   implicit none
   integer                 :: i,ierr,ndimVtemp
-  character(len=120)      :: columnfile
+  character(len=240)      :: columnfile
   character(len=lenlabel) :: labeli
   logical                 :: iexist
 !

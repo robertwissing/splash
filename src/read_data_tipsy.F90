@@ -130,8 +130,8 @@ subroutine read_data(rootname,indexstart,ipos,nstepsread)
      open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)
   case default
      !--if compiler cannot distinguish the two, try ascii first, then binary
-     iambinaryfile = -1
-     open(unit=iunit,file=dumpfile,status='old',form='formatted',iostat=ierr)
+     iambinaryfile = 1
+     open(unit=iunit,file=dumpfile,status='old',form='unformatted',access='stream',iostat=ierr)
   end select
 
   if (ierr /= 0) then
@@ -479,14 +479,14 @@ end subroutine read_data
 
 subroutine set_labels
   use labels, only:label,labelvec,labeltype,iamvec,&
-              ix,ivx,ih,irho,ipmass,imetals,itform,ipot,tipsylabel,ncolextra !,iutherm
+              ix,ivx,ih,irho,ipmass,imetals,iBfirst,iJfirst,itform,ipot,tipsylabel,ncolextra !,iutherm
   use settings_data, only:ndim,ndimV,ntypes,UseTypeInRenderings
   use geometry, only:labelcoord
   !use settings_units, only:units,unitslabel
   implicit none
-  integer :: i,ibx,icurlbx
-  ibx=0
-  icurlbx=0
+  integer :: i
+  !iBfirst=0
+  !iJfirst=0
   if (ndim.le.0 .or. ndim.gt.3) then
      print*,'*** ERROR: ndim = ',ndim,' in set_labels ***'
      return
@@ -523,10 +523,13 @@ subroutine set_labels
      label(ipot+i) = tipsylabel(i)
 endif
      if (tipsylabel(i)=='BFieldx') then
-        ibx=ipot+i
+        iBfirst=ipot+i
 endif
      if (tipsylabel(i)=='CurlBx') then
-        icurlbx=ipot+i
+        iJfirst=ipot+i
+endif
+ if (tipsylabel(i)=='DivB') then
+        idivB=ipot+i
 endif
   enddo
   itform = ipot+ncolextra+1
@@ -538,18 +541,18 @@ endif
         label(ivx+i-1) = trim(labelvec(ivx))//'\d'//trim(labelcoord(i,1))
      enddo
   endif
-  if (ibx.ne.0) then
-     iamvec(ibx:ibx+ndimV-1) = ibx
-     labelvec(ibx:ibx+ndimV-1) = 'B'
+  if (iBfirst.ne.0) then
+     iamvec(iBfirst:iBfirst+ndimV-1) = iBfirst
+     labelvec(iBfirst:iBfirst+ndimV-1) = 'B'
      do i=1,ndimV
-        label(ibx+i-1) = trim(labelvec(ibx))//'\d'//trim(labelcoord(i,1))
+        label(iBfirst+i-1) = trim(labelvec(iBfirst))//'\d'//trim(labelcoord(i,1))
      enddo
   endif
-  if (icurlbx.ne.0) then
-     iamvec(icurlbx:icurlbx+ndimV-1) = icurlbx
-     labelvec(icurlbx:icurlbx+ndimV-1) = 'CurlB'
+  if (iJfirst.ne.0) then
+     iamvec(iJfirst:iJfirst+ndimV-1) = iJfirst
+     labelvec(iJfirst:iJfirst+ndimV-1) = 'CurlB'
      do i=1,ndimV
-        label(icurlbx+i-1) = trim(labelvec(icurlbx))//'\d'//trim(labelcoord(i,1))
+        label(iJfirst+i-1) = trim(labelvec(iJfirst))//'\d'//trim(labelcoord(i,1))
      enddo
   endif
   !

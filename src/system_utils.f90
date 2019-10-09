@@ -152,7 +152,7 @@ contains
     character(len=*), intent(in) :: variable
     integer, intent(out) :: nlist
     character(len=*), dimension(:), intent(out), optional :: list
-    character(len=120) :: string
+    character(len=240) :: string
     character(len=10) :: dummy
     integer :: i1,i2,ierr
     logical :: notlistfull

@@ -518,7 +518,7 @@ contains
    recursive subroutine string_prompt(text, string, length, case, noblank, list)
       character(len=*), intent(in)    :: text
       character(len=*), intent(inout) :: string
-      character(len=128)              :: newstring
+      character(len=256)              :: newstring
       integer, optional, intent(out)  :: length
       integer, optional, intent(in)   :: case
       logical, optional, intent(in)   :: noblank
@@ -608,7 +608,7 @@ contains
       integer, intent(inout)               :: nvalues
       integer, dimension(size(value))      :: newvalue
       character(len=64)             :: valstring
-      character(len=120)            :: string
+      character(len=240)            :: string
       character(len=16)             :: chmin, chmax
       integer                       :: ios
       integer, optional, intent(in) :: min, max

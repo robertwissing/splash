@@ -140,7 +140,7 @@ subroutine submenu_particleplots(ichoose)
   character(len=2)    :: charntypes
   character(len=20)   :: substring1,substring2,substring3
   character(len=1000) :: fmtstring
-  character(len=120)  :: contline
+  character(len=240)  :: contline
   character(len=3)    :: idustfracsum_string
   logical :: ians
 

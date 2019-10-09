@@ -386,7 +386,7 @@ program splash
   implicit none
   integer :: i,ierr,nargs,ipickx,ipicky,irender,icontour,ivecplot
   logical :: ihavereadfilenames,evsplash,doconvert,useall,iexist,use_360
-  character(len=120) :: string
+  character(len=240) :: string
   character(len=12)  :: convertformat
   character(len=*), parameter :: version = 'v2.8.1beta [18th May 2018]'
 

@@ -73,7 +73,7 @@ module exact
   real :: hfact
   !--read from file
   integer :: ixcolfile(maxexact),iycolfile(maxexact),nfiles
-  character(len=120) :: filename_exact(maxexact)
+  character(len=240) :: filename_exact(maxexact)
   !--equilibrium torus
   real :: Mstar,Rtorus,distortion
   !--ring spreading
@@ -82,7 +82,7 @@ module exact
   real :: cs,Kdrag,rhozero,rdust_to_gas
   !--arbitrary function
   integer :: nfunc
-  character(len=120), dimension(maxexact) :: funcstring
+  character(len=240), dimension(maxexact) :: funcstring
   !--Roche potential
   real :: mprim,msec
   real :: xprim(3),xsec(3)
@@ -649,7 +649,7 @@ contains
 
     integer :: idash,nf,i,j,idrag,idum,linenum,k,ieq,ierrs(6),narmsread
     character(len=len_trim(rootname)+8) :: filename
-    character(len=120) :: line
+    character(len=240) :: line
     character(len=30)  :: var
     logical            :: iexist
 
