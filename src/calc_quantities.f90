@@ -40,11 +40,10 @@ module calcquantities
  integer, parameter, private :: nextravars = 5
  character(len=lenvars), dimension(nextravars), parameter, private :: &
           extravars=(/'t    ','gamma','x0   ','y0   ','z0   '/)
- logical, save :: firstcall = .true.
 
  namelist /calcopts/ calcstring,calclabel,calcunitslabel
 
- public :: calcopts,calcstring,calclabel,calcunitslabel,firstcall
+ public :: calcopts,calcstring,calclabel,calcunitslabel
  private
 
 contains
@@ -55,7 +54,7 @@ contains
 !  to compute additional quantities from the particle data
 !
 !-----------------------------------------------------------------
-subroutine setup_calculated_quantities(ncalc,quiet)
+subroutine setup_calculated_quantities(ncalc)
  use settings_data, only:ncolumns
  use prompting,     only:prompt
  implicit none
@@ -64,33 +63,27 @@ subroutine setup_calculated_quantities(ncalc,quiet)
  logical              :: done,first
  character(len=1)     :: charp
  integer, dimension(maxcalc)   :: incolumn
- logical, intent(in), optional :: quiet
- logical              :: verbose = .true.
  ipick = ncolumns + 1
 
  done = .false.
  first = .true.
- if (present(quiet)) verbose = .false.
 !
 !--on the first call to setup, prefill the list of calculated
 !  quantities with ALL of the valid examples.
 !
- if (ncalc.eq.0 .and. firstcall) call print_example_quantities(verbose,ncalc)
- firstcall = .false.
+ if (ncalc.eq.0) call print_example_quantities(.true.,ncalc)
  charp = 'a'
  calcmenu: do while (.not.done)
-    call check_calculated_quantities(ncalc,ncalctot,incolumn,verbose)
+    call check_calculated_quantities(ncalc,ncalctot,incolumn,verbose=.true.)
     ninactive = ncalctot - ncalc
 
     iend = maxcalc
     if (ncalctot.gt.0 .or. .not.first) then
        charp='q' !'a'
        if (.not.first) charp = 'q'
-       if (verbose) then
-          print*
-          call prompt(' a)dd to, e)dit, c)lear current list or q)uit/finish? ',&
-                      charp,list=(/'a','e','c','q','s','S','Q'/),noblank=.true.)
-       endif
+       print*
+       call prompt(' a)dd to, e)dit, c)lear current list, or q)uit/finish? ',&
+                   charp,list=(/'a','e','c','q','s','S','Q'/),noblank=.true.)
        select case(charp)
        case('a')
           istart = ncalctot
@@ -123,18 +116,17 @@ subroutine setup_calculated_quantities(ncalc,quiet)
        iend   = 1
     endif
 
-    if (.not.done) call add_calculated_quantities(istart,iend,ncalc,first,incolumn,verbose)
+    if (.not.done) call add_calculated_quantities(istart,iend,ncalc,first,incolumn,verbose=.true.)
     first = .false.
  enddo calcmenu
- if (ncalc.lt.10) then
-    print "(a,i1,a)",' setup ',ncalc,' additional quantities'
- else
-    print "(a,i2,a)",' setup ',ncalc,' additional quantities'
+
+ if (ncalc > 0) then
+    if (ncalc.lt.10) then
+       print "(a,i1,a)",' setup ',ncalc,' additional quantities'
+    else
+       print "(a,i2,a)",' setup ',ncalc,' additional quantities'
+    endif
  endif
- !
- !--reset verbose so we can edit the list the next time through
- !
- if (present(quiet)) verbose = .true.
 
 end subroutine setup_calculated_quantities
 
@@ -149,7 +141,6 @@ subroutine add_calculated_quantities(istart,iend,ncalc,printhelp,incolumn,verbos
  use fparser,       only:checkf
  use settings_data, only:ncolumns,iRescale,required
  use labels,        only:shortstring,headertags,count_non_blank
- implicit none
  integer, intent(in)  :: istart,iend
  integer, intent(out) :: ncalc
  logical, intent(in)  :: printhelp
@@ -172,14 +163,12 @@ subroutine add_calculated_quantities(istart,iend,ncalc,printhelp,incolumn,verbos
  endif
 
  if (printhelp) then
-    print "(/,a)",' Specify a function to calculate from the data '
-    print "(10(a))",' Valid variables are column labels',(', '''//trim(extravars(j))//'''',j=1,nextravars),&
+    print "(/,a)",' Special characters and spaces removed from labels.'
+    print "(a)",' Previous quantities can be used in subsequent calculations.'
+    print "(/,10(a))",' Valid variables: column labels',(', '''//trim(extravars(j))//'''',j=1,nextravars),&
                 ' and header variables:'
     nhdr = count_non_blank(headertags)
-    print "(43(2x,6(a),/))",headertags(1:nhdr)
-    print "(/,a)",' Spaces, escape sequences (\d), arithmetic operators and units labels'
-    print "(a)",' are removed from variable names. Note that previously calculated'
-    print "(a)",' quantities can be used in subsequent calculations.'
+    if (nhdr > 0) print "(43(2x,6(a),/))",headertags(1:nhdr)
  endif
  call print_example_quantities(verbose)
 
@@ -306,28 +295,32 @@ end subroutine splitstring
 subroutine print_example_quantities(verbose,ncalc)
  use labels,        only:label,unitslabel,shortlabel,lenlabel,irho,iutherm,iBfirst,&
                          ix,icv,idivB,ih,iradenergy,iamvec,labelvec,idustfrac,&
-                         ideltav,ivx
+                         ideltav,ivx,headertags
  use settings_data, only:ncolumns,ndim,icoordsnew,ndimV
  use geometry,      only:labelcoord
  use asciiutils,    only:append_number,find_repeated_tags
- implicit none
+ use particle_data, only:headervals
+ use filenames,     only:ifileopen
  logical :: verbose
  integer, intent(inout), optional :: ncalc
  logical :: prefill
- character(len=lenlabel) :: string,labelprev,ldfracsum
- integer :: i,j,ivecstart,ierr,ilen,idustfrac1,ndusttypes
+ character(len=lenlabel) :: string,ldfracsum
+ integer :: i,j,ivecstart,ierr,ilen,idustfrac1,ndusttypes,nc
  logical :: gotpmag,gotpressure
 
  gotpmag = .false.
  gotpressure = .false.
  prefill = .false.
- if (present(ncalc)) prefill = .true.
+ if (present(ncalc)) then
+    prefill = .true.
+    nc = ncalc
+ endif
 
  if (verbose) then
     if (prefill) then
        print "(/,a)",' Prefilling list with useful quantities from current data...'
     else
-       print "(/,a)",' Examples based on current data: '
+       print "(/,a)",' e.g. '
     endif
  endif
 
@@ -344,12 +337,7 @@ subroutine print_example_quantities(verbose,ncalc)
     else
        write(string(ilen+1:),"(a)") ')'
     endif
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  elseif (ncolumns.ge.2 .and. .not.prefill) then
  !--if ndim=0 give random example to give at least one
     print "(11x,a)",trim(shortlabel(label(1)))//'*'//trim(shortlabel(label(2)))
@@ -369,12 +357,7 @@ subroutine print_example_quantities(verbose,ncalc)
             'pressure = (gamma-1)*'//trim(shortlabel(label(irho),unitslabel(irho)))// &
             '*'//trim(shortlabel(label(iutherm),unitslabel(iutherm)))
     endif
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  endif
  !
  !--total dust fraction if multiple dust phases
@@ -390,14 +373,9 @@ subroutine print_example_quantities(verbose,ncalc)
           string = trim(string)//'+'//(trim(shortlabel(label(i),unitslabel(i))))
        enddo
        ldfracsum = 'dustfrac'
-       if (prefill) then
-          ncalc = ncalc + 1
-          call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-       else
-          print "(11x,a)",trim(string)
-       endif
+       call print_or_prefill(prefill,string,nc)
     endif
- else
+ elseif (idustfrac > 0) then
     ndusttypes = 1
     ldfracsum = shortlabel(label(idustfrac),unitslabel(idustfrac))
  endif
@@ -410,50 +388,29 @@ subroutine print_example_quantities(verbose,ncalc)
     write(string,"(a)",iostat=ierr) '\rho_{g} = ' &
                     //trim(shortlabel(label(irho),unitslabel(irho))) &
                     //'*(1 - '//trim(ldfracsum)//')'
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-       labelprev = calclabel(ncalc)
-       calcunitslabel(ncalc) = unitslabel(irho)
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc,ulab=unitslabel(irho))
+
     !--(total) dust density
     write(string,"(a)",iostat=ierr) '\rho_{d} = ' &
                     //trim(shortlabel(label(irho),unitslabel(irho))) &
                     //'*'//trim(ldfracsum)
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-       calcunitslabel(ncalc) = unitslabel(irho)
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc,ulab=unitslabel(irho))
+
     !--densities of each individual dust phase
     if (ndusttypes > 1) then
        do i = idustfrac1,idustfrac1+ndusttypes-1
           string = '\rho_{d,'
-          call append_number(string,i-idustfrac1+1)
+          if (ifileopen > 0) call append_grain_size_label(string,i-idustfrac1+1,headertags,headervals(:,ifileopen),ierr)
+          if (ierr /= 0) call append_number(string,i-idustfrac1+1)
           string = trim(string)//'} = ' &
                //trim(shortlabel(label(irho),unitslabel(irho)))//'*'//trim(label(i))
-          if (prefill) then
-             ncalc = ncalc + 1
-             call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-             calcunitslabel(ncalc) = unitslabel(irho)
-          else
-             print "(11x,a)",trim(string)
-          endif
+          call print_or_prefill(prefill,string,nc,ulab=unitslabel(irho))
        enddo
     endif
     !--dust-to-gas ratio
     write(string,"(a)",iostat=ierr) 'dust-to-gas ratio = ' &
                     //trim(ldfracsum)//'/(1. - '//trim(ldfracsum)//')'
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
 
     if (ideltav.gt.0 .and. ivx.gt.0 .and. ndimV.gt.0) then
        if (ndusttypes==1) then
@@ -463,17 +420,7 @@ subroutine print_example_quantities(verbose,ncalc)
                              //trim(shortlabel(label(ivx + i-1),unitslabel(ivx + i-1))) &
                              //' - '//trim(shortlabel(label(idustfrac),unitslabel(idustfrac))) &
                              //'*'//trim(shortlabel(label(ideltav + i-1),unitslabel(ideltav + i-1)))
-!                             //trim(shortlabel(label(ivx + i-1),unitslabel(ivx + i-1))) &
-!                             //' - r_{dust}/'//trim(shortlabel(label(irho),unitslabel(irho))) &
-!                             //'*'//trim(shortlabel(label(ideltav + i-1),unitslabel(ideltav + i-1)))
-             if (prefill) then
-                ncalc = ncalc + 1
-                !if (i.eq.1) labelvec(ncalc) = 'v_{gas}'
-                !iamvec(ncalc) = ncolumns + ncalc - i + 1
-                call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-             else
-                print "(11x,a)",trim(string)
-             endif
+             call print_or_prefill(prefill,string,nc)
           enddo
           !--dust velocities
           do i=1,ndimV
@@ -481,17 +428,7 @@ subroutine print_example_quantities(verbose,ncalc)
                              //trim(shortlabel(label(ivx + i-1),unitslabel(ivx + i-1))) &
                              //' + (1 - '//trim(shortlabel(label(idustfrac),unitslabel(idustfrac))) &
                              //')*'//trim(shortlabel(label(ideltav + i-1),unitslabel(ideltav + i-1)))
-!                             //trim(shortlabel(label(ivx + i-1),unitslabel(ivx + i-1))) &
-!                             //' + r_{gas}/'//trim(shortlabel(label(irho),unitslabel(irho))) &
-!                             //'*'//trim(shortlabel(label(ideltav + i-1),unitslabel(ideltav + i-1)))
-             if (prefill) then
-                ncalc = ncalc + 1
-                !if (i.eq.1) labelvec(ncalc) = 'v_{dust}'
-                !iamvec(ncalc) = ncolumns + ncalc - i + 1
-                call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-             else
-                print "(11x,a)",trim(string)
-             endif
+             call print_or_prefill(prefill,string,nc)
           enddo
        else
           ! Still needs to be implemented...
@@ -518,12 +455,7 @@ subroutine print_example_quantities(verbose,ncalc)
           else
              write(string(ilen+1:),"(a)",iostat=ierr) ')'
           endif
-          if (prefill) then
-             ncalc = ncalc + 1
-             call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-          else
-             print "(11x,a)",trim(string)
-          endif
+          call print_or_prefill(prefill,string,nc)
        endif
     enddo
  endif
@@ -541,12 +473,7 @@ subroutine print_example_quantities(verbose,ncalc)
     else
        write(string(ilen+1:),"(a)",iostat=ierr) ')'
     endif
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  endif
  !--h*div B / B
  if (ndim.gt.0 .and. ndimV.gt.0 .and. ih.gt.0 .and. iBfirst.gt.0 .and. &
@@ -562,22 +489,13 @@ subroutine print_example_quantities(verbose,ncalc)
     else
        write(string(ilen+1:),"(a)",iostat=ierr) '))'
     endif
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  endif
  !--Plasma beta
  if (ndim.gt.0 .and. ndimV.gt.0 .and. iBfirst.gt.0 .and. gotpmag .and. gotpressure) then
     write(string,"(a)",iostat=ierr) 'plasma \beta = pressure/P_mag'
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)//'    [ assuming pressure and Pmag calculated ]'
-    endif
+    call print_or_prefill(prefill,string,nc,&
+         comment='[ assuming pressure and Pmag calculated ]')
  endif
 
  !--gas temperature if cv present
@@ -585,29 +503,83 @@ subroutine print_example_quantities(verbose,ncalc)
     string = ' '
     write(string,"(a)",iostat=ierr) 'T_{gas} = '//trim(shortlabel(label(iutherm),unitslabel(iutherm)))//'/' &
                     //trim(shortlabel(label(icv),unitslabel(icv)))
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  endif
  !--radiation temperature
  if (ndim.gt.0 .and. irho.gt.0 .and. iradenergy.gt.0) then
     string = ' '
     write(string,"(a)",iostat=ierr) 'T_{rad} = ('//trim(shortlabel(label(irho),unitslabel(irho)))//'*' &
                     //trim(shortlabel(label(iradenergy),unitslabel(iradenergy)))//'/7.5646e-15)**0.25'
-    if (prefill) then
-       ncalc = ncalc + 1
-       call splitstring(string,calclabel(ncalc),calcstring(ncalc))
-    else
-       print "(11x,a)",trim(string)
-    endif
+    call print_or_prefill(prefill,string,nc)
  endif
 
+ if (present(ncalc)) ncalc = nc
  if (.not.prefill) print "(a)"
 
 end subroutine print_example_quantities
+
+!-----------------------------------------------------------------
+!
+!  utility (private) to append enumerated grainsize as a label
+!
+!-----------------------------------------------------------------
+subroutine append_grain_size_label(string,idust,tags,vals,ierr)
+ use labels, only:get_label_grain_size,count_non_blank
+ character(len=*), intent(inout) :: string
+ integer, intent(in)  :: idust
+ character(len=*), intent(in) :: tags(:)
+ real,    intent(in) :: vals(:)
+ integer, intent(out) :: ierr
+ integer :: ntags,nd,i
+
+ ntags = count_non_blank(tags)
+ nd = 0
+ ierr = 1
+ do i=1,ntags
+    if (index(tags(i),'grainsize') > 0) then
+       nd = nd + 1
+       if (nd==idust) then
+          ierr = 0
+          string = trim(string)//get_label_grain_size(vals(i))
+       endif
+    endif
+ enddo
+
+end subroutine append_grain_size_label
+
+!-----------------------------------------------------------------
+!
+!  utility (private) to either print the example quantity or
+!  add it to a prefilled list of calculated quantities
+!
+!-----------------------------------------------------------------
+subroutine print_or_prefill(prefill,string,nc,comment,ulab)
+ logical, intent(in) :: prefill
+ character(len=*), intent(in) :: string
+ integer, intent(inout) :: nc
+ character(len=*), intent(in), optional :: comment,ulab
+ logical :: already_used
+ integer :: i
+
+ if (prefill) then
+    nc = nc + 1
+    call splitstring(string,calclabel(nc),calcstring(nc))
+    if (present(ulab)) calcunitslabel(nc) = trim(ulab)
+ else
+    ! do not print strings already in the list
+    already_used = .false.
+    do i=1,size(calcstring)
+       if (trim(calclabel(i))//' = '//trim(calcstring(i))==trim(string)) already_used = .true.
+    enddo
+    ! append comment if present
+    if (present(comment)) then
+       if (.not.already_used) print "(6x,a)",trim(string)//'    [ '//trim(comment)//' ]'
+    else
+       if (.not.already_used) print "(6x,a)",trim(string)
+    endif
+ endif
+
+end subroutine print_or_prefill
 
 !-----------------------------------------------------------------
 !
@@ -619,7 +591,6 @@ subroutine check_calculated_quantities(ncalcok,ncalctot,incolumn,verbose)
  use settings_data,  only:ncolumns,iRescale
  use fparser,        only:checkf
  use labels,         only:label,unitslabel,shortstring
- implicit none
  integer, intent(out) :: ncalcok,ncalctot
  integer, dimension(maxcalc), intent(out), optional :: incolumn
  logical, intent(in), optional :: verbose
@@ -747,7 +718,6 @@ subroutine calc_quantities(ifromstep,itostep,dontcalculate)
   use timing,         only:wall_time,print_time
   use geomutils,      only:change_coords
   use part_utils,     only:get_tracked_particle
-  implicit none
   integer, intent(in) :: ifromstep, itostep
   logical, intent(in), optional :: dontcalculate
   integer :: i,j,ncolsnew,ierr,icalc,ntoti,nvars,ncalctot,nused,itrackpart
@@ -947,7 +917,6 @@ subroutine identify_calculated_quantity(labelcol,ncolumns,icolumn)
  use asciiutils,    only:lcase
  use labels,        only:irad,ike,ipr,iutherm
  use settings_data, only:debugmode
- implicit none
  character(len=*), intent(in) :: labelcol
  integer, intent(in) :: ncolumns,icolumn
  !
@@ -988,7 +957,6 @@ end subroutine identify_calculated_quantity
 !-----------------------------------------------------------------
 subroutine get_variables(maxlabel,nvars,variables)
  use labels,         only:label,shortlabel,unitslabel,headertags,count_non_blank
- implicit none
  integer,                        intent(in)  :: maxlabel
  integer,                        intent(out) :: nvars
  character(len=*), dimension(:), intent(out) :: variables
@@ -1020,7 +988,6 @@ end subroutine get_variables
 !
 !-----------------------------------------------------------------
 logical function calc_quantities_use_x0()
- implicit none
  integer :: i
 
  calc_quantities_use_x0 = .false.

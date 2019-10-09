@@ -57,6 +57,8 @@ module timestep_plotting
   real,    dimension(maxplot) :: vptxmin,vptxmax,vptymin,vptymax,barwmulti
   real, private :: xminadapti,xmaxadapti,yminadapti,ymaxadapti,renderminadapt,rendermaxadapt
   real, private :: contminadapt,contmaxadapt
+  real, private :: xminwas = 0.,xmaxwas = 0.,yminwas = 0.,ymaxwas = 0.
+  real, private :: renderminwas = 0.,rendermaxwas = 0.,contminwas = 0.,contmaxwas = 0.
   real, parameter, private :: pi = 3.1415926536
 
   logical, private :: iplotpart,iplotcont,x_sec,isamexaxis,isameyaxis,iamrendering,idoingvecplot
@@ -435,40 +437,42 @@ subroutine initialise_plotting(ipicky,ipickx,irender_nomulti,icontour_nomulti,iv
        endif
      endif
 
-     if (iplotz.gt.0 .and. use3Dperspective) then
+     if (iplotz.gt.0) then
 !
 !--initialise 3D perspective
 !
-       !--set default values if none set
-       if (abs(zobserver).lt.tiny(zobserver)) zobserver = 10.*lim(iplotz,2)
-       if (abs(dzscreenfromobserver).lt.tiny(dzscreenfromobserver)) dzscreenfromobserver = zobserver
-       call prompt('enter z coordinate of observer ',zobserver)
-       dzscreenfromobserver = zobserver
+        if (use3Dperspective) then
+           !--set default values if none set
+           if (abs(zobserver).lt.tiny(zobserver)) zobserver = 10.*lim(iplotz,2)
+           if (abs(dzscreenfromobserver).lt.tiny(dzscreenfromobserver)) dzscreenfromobserver = zobserver
+           call prompt('enter z coordinate of observer ',zobserver)
+           dzscreenfromobserver = zobserver
+        endif
 !       call prompt('enter distance for unit magnification ',dzscreenfromobserver,0.)
 !
 !--initialise opacity for 3D opacity rendering
 !
-       if (use3Dopacityrendering .and. (iamrendering .or. idoingvecplot)) then
-          hav = lim(ih,1) !! 0.5*(lim(ih,2) + lim(ih,1))
-          if (hav.le.epsilon(hav)) hav = 0.5*lim(ih,2) ! take 0.5*max if min is zero
-          if (ipmass.gt.0) then
-             pmassav = lim(ipmass,1)
-             if (pmassav.le.epsilon(hav)) pmassav = 0.5*lim(ipmass,2) ! take 0.5*max if min is zero
-          else  ! handle case where mass is not a data column
-             pmassav = maxval(masstype)
-             do i=1,ntypes
-                if (iplotpartoftype(i) .and. usetypeinrenderings(i) &
-                    .and. any(masstype(i,:).gt.0.)) pmassav = min(pmassav,maxval(masstype(i,:)))
-             enddo
-          endif
-          print*,'using current h and pmass limits to calculate kappa (cross section/unit mass)'
-          print*,'min h = ',hav,' min particle mass = ',pmassav
-          print*,'[ kappa = pi*h_min**2/(particle_mass*n_smoothing_lengths) ]'
-          call prompt('enter approximate surface depth (number of smoothing lengths):',taupartdepth,0.)
-          rkappafac = pi*hav*hav/(pmassav*coltable(0))
-          print*,'kappa (particle cross section per unit mass) = ',rkappafac/taupartdepth
-       endif
-    endif
+        if (use3Dopacityrendering .and. (iamrendering .or. idoingvecplot)) then
+           hav = lim(ih,1) !! 0.5*(lim(ih,2) + lim(ih,1))
+           if (hav.le.epsilon(hav)) hav = 0.5*lim(ih,2) ! take 0.5*max if min is zero
+           if (ipmass.gt.0) then
+              pmassav = lim(ipmass,1)
+              if (pmassav.le.epsilon(hav)) pmassav = 0.5*lim(ipmass,2) ! take 0.5*max if min is zero
+           else  ! handle case where mass is not a data column
+              pmassav = maxval(masstype)
+              do i=1,ntypes
+                 if (iplotpartoftype(i) .and. usetypeinrenderings(i) &
+                     .and. any(masstype(i,:).gt.0.)) pmassav = min(pmassav,maxval(masstype(i,:)))
+              enddo
+           endif
+           print*,'using current h and pmass limits to calculate kappa (cross section/unit mass)'
+           print*,'min h = ',hav,' min particle mass = ',pmassav
+           print*,'[ kappa = pi*h_min**2/(particle_mass*n_smoothing_lengths) ]'
+           call prompt('enter approximate surface depth (number of smoothing lengths):',taupartdepth,0.)
+           rkappafac = pi*hav*hav/(pmassav*coltable(0))
+           print*,'kappa (particle cross section per unit mass) = ',rkappafac/taupartdepth
+        endif
+     endif
 
   endif
 
@@ -701,7 +705,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
   use settings_vecplot,   only:npixvec,iplotpartvec
   use settings_xsecrot,   only:nxsec,irotateaxes,xsec_nomulti,irotate, &
                                flythru,use3Dperspective,use3Dopacityrendering,&
-                               writeppm,anglex,angley,anglez,zobserver,&
+                               anglex,angley,anglez,zobserver,&
                                dzscreenfromobserver,taupartdepth,xsecpos_nomulti, &
                                xseclineX1,xseclineX2,xseclineY1,xseclineY2, &
                                nseq,nframes,getsequencepos,insidesequence,rendersinks
@@ -732,7 +736,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
   use disc,                  only:disccalc,discplot
   use exactfromfile,         only:exact_fromfile
   use exact,                 only:iexact_rochelobe,use_sink_data,mprim,msec,xprim,xsec
-  use write_pixmap,          only:iwritepixmap,writepixmap,write_pixmap_ppm,readpixmap
+  use write_pixmap,          only:iwritepixmap,writepixmap,readpixmap
   use pdfs,                  only:pdf_calc,pdf_write
   use plotutils,             only:plotline
   use geometry,              only:coord_is_length
@@ -740,8 +744,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
   use legends,               only:ipanelselect
   use asciiutils,            only:string_delete
   use plotlib,               only:plot_sci,plot_page,plot_sch,plot_qci,plot_qls,&
-                                  plot_sls,plot_line,plot_pt1,plotlib_is_pgplot,&
-                                  plotlib_supports_alpha
+                                  plot_sls,plot_line,plot_pt1,plotlib_is_pgplot
   integer, intent(inout) :: ipos, istepsonpage
   integer, intent(in)    :: istep,irender_nomulti,icontour_nomulti,ivecplot
   integer(kind=int1), dimension(:), intent(in) :: iamtype
@@ -781,7 +784,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
   character(len=12) :: string
 
   logical :: iPlotColourBar, rendering, inormalise, logged, loggedcont
-  logical :: dumxsec, isetrenderlimits, iscoordplot
+  logical :: dumxsec, isetrenderlimits, iscoordplot, inorm_label
   logical :: ichangesize, initx, inity, initz, isameweights, volweightedpdf, got_h
   logical, parameter :: isperiodicx = .false. ! feature not implemented
   logical, parameter :: isperiodicy = .false. ! feature not implemented
@@ -1132,14 +1135,15 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
            angletempx = anglex
            angletempy = angley
            angletempz = anglez
-           if (ndim.eq.3 .and. use3Dperspective) then
-              dzscreentemp = dzscreenfromobserver
-              zobservertemp = zobserver
-              taupartdepthtemp = taupartdepth
-           else
-              dzscreentemp = 0.
-              zobservertemp = 0.
-              taupartdepthtemp = 0.
+           dzscreentemp = 0.
+           zobservertemp = 0.
+           taupartdepthtemp = 0.
+           if (ndim.eq.3) then
+              if (use3Dperspective) then
+                 dzscreentemp = dzscreenfromobserver
+                 zobservertemp = zobserver
+              endif
+              if (use3Dopacityrendering) taupartdepthtemp = taupartdepth
            endif
         else
            if (ndim.eq.3 .and. use3Dperspective) dzscreentemp = zobservertemp
@@ -1193,9 +1197,11 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                 zslicepos,xmin,xmax,ymin,ymax,rendermin,rendermax,isetrenderlimits)
         endif
         !--for 3D perspective, do not plot particles behind the observer
-        if (ndim.eq.3.and.use3Dperspective) then
-           dzscreenfromobserver = zobserver
-           zslicemax = zobservertemp
+        if (ndim.eq.3) then
+           if (use3Dperspective) then
+              dzscreenfromobserver = zobserver
+              zslicemax = zobservertemp
+           endif
            if (use3Dopacityrendering) rkappa = rkappafac/taupartdepthtemp
         endif
 
@@ -1320,7 +1326,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                  if (npixx.ne.size(datpix(:,1)) .or. npixy.ne.size(datpix(1,:))) then
                     deallocate(datpix)
                     allocate (datpix(npixx,npixy))
-                    if (ndim.eq.3 .and. use3Dperspective .and. use3Dopacityrendering) then
+                    if (ndim.eq.3 .and. use3Dopacityrendering) then
                        if (allocated(brightness)) deallocate(brightness)
                        allocate(brightness(npixx,npixy))
                     endif
@@ -1331,7 +1337,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                  endif
               else
                  allocate (datpix(npixx,npixy))
-                 if (ndim.eq.3 .and. use3Dperspective .and. use3Dopacityrendering) then
+                 if (ndim.eq.3 .and. use3Dopacityrendering) then
                     if (allocated(brightness)) deallocate(brightness)
                     allocate(brightness(npixx,npixy))
                  endif
@@ -1477,7 +1483,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                  !--only rerender if absolutely necessary
                  if (.not.interactivereplot .or. irerender) then
                     if (x_sec) then
-                       if (use3Dperspective .and. use3Dopacityrendering) then
+                       if (use3Dopacityrendering) then
                           !!--do surface-rendered cross-section with opacity
                           if (iverbose > 0) print*,trim(label(ix(iplotz))),' = ',zslicepos,  &
                                 ' : opacity-rendered cross section', xmin,ymin
@@ -1492,7 +1498,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   dat(1:ninterp,icontourplot), &
                                   dat(1:ninterp,iz),icolourme(1:ninterp), &
                                   ninterp,xmin,ymin,datpixcont,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                                  dzscreentemp,rkappa,zslicepos)
+                                  dzscreentemp,rkappa,zslicepos,iverbose)
                                 gotcontours = .true.
 
                                 if (.not.isameweights) & ! reset weights
@@ -1504,7 +1510,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                dat(1:ninterp,irenderplot), &
                                dat(1:ninterp,iz),icolourme(1:ninterp), &
                                ninterp,xmin,ymin,datpix,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                               dzscreentemp,rkappa,zslicepos)
+                               dzscreentemp,rkappa,zslicepos,iverbose)
                           else
                              if (icontourplot.gt.0 .and. icontourplot.le.numplot) then
                                 if (.not.isameweights) & ! set contouring weights as necessary
@@ -1515,7 +1521,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   pmassav,1,hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,icontourplot), &
                                   dat(1:ninterp,iz),icolourme(1:ninterp), &
                                   ninterp,xmin,ymin,datpixcont,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                                  dzscreentemp,rkappa,zslicepos)
+                                  dzscreentemp,rkappa,zslicepos,iverbose)
                                 gotcontours = .true.
 
                                 if (.not.isameweights) & ! reset weights
@@ -1526,7 +1532,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                pmassav,1,hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,irenderplot), &
                                dat(1:ninterp,iz),icolourme(1:ninterp), &
                                ninterp,xmin,ymin,datpix,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                               dzscreentemp,rkappa,zslicepos)
+                               dzscreentemp,rkappa,zslicepos,iverbose)
                           endif
                        elseif (use3Dperspective) then
                           print*,'ERROR: X_SEC WITH 3D PERSPECTIVE NOT IMPLEMENTED'
@@ -1547,7 +1553,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   zplot(1:ninterp),hh(1:ninterp), &
                                   weight(1:ninterp),dat(1:ninterp,irenderplot),icolourme(1:ninterp), &
                                   ninterp,xmin,ymin,zslicepos,datpix,npixx,npixy,pixwidth, &
-                                  pixwidthy,inormalise)
+                                  pixwidthy,inormalise,iverbose)
                           endif
                           !!--same but for contour plot
                           if (icontourplot.gt.0 .and. icontourplot.le.numplot) then
@@ -1566,7 +1572,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                      zplot(1:ninterp),hh(1:ninterp), &
                                      weight(1:ninterp),dat(1:ninterp,icontourplot),icolourme(1:ninterp), &
                                      ninterp,xmin,ymin,zslicepos,datpixcont,npixx,npixy,pixwidth, &
-                                     pixwidthy,inormalise)
+                                     pixwidthy,inormalise,iverbose)
                              endif
                              gotcontours = .true.
 
@@ -1575,7 +1581,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                           endif
                        endif
                     else
-                       if (use3Dperspective .and. use3Dopacityrendering) then
+                       if (use3Dopacityrendering) then
                           !!--do fast projection with opacity
                           if (ipmass.gt.0) then
                              !--contour plot first
@@ -1589,7 +1595,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   dat(1:ninterp,icontourplot), &
                                   dat(1:ninterp,iz),icolourme(1:ninterp), &
                                   ninterp,xmin,ymin,datpixcont,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                                  dzscreentemp,rkappa,huge(zslicepos))
+                                  dzscreentemp,rkappa,huge(zslicepos),iverbose)
                                 gotcontours = .true.
 
                                 if (.not.isameweights) & ! reset weights
@@ -1601,7 +1607,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                weight(1:ninterp),dat(1:ninterp,irenderplot), &
                                dat(1:ninterp,iz),icolourme(1:ninterp), &
                                ninterp,xmin,ymin,datpix,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                               dzscreentemp,rkappa,huge(zslicepos))
+                               dzscreentemp,rkappa,huge(zslicepos),iverbose)
                           else
                              !--do contour plot first so brightness corresponds to render plot
                              if (icontourplot.gt.0 .and. icontourplot.le.numplot) then
@@ -1613,7 +1619,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   pmassav,1,hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,irenderplot), &
                                   dat(1:ninterp,iz),icolourme(1:ninterp), &
                                   ninterp,xmin,ymin,datpixcont,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                                  dzscreentemp,rkappa,huge(zslicepos))
+                                  dzscreentemp,rkappa,huge(zslicepos),iverbose)
                                 gotcontours = .true.
 
                                 if (.not.isameweights) & ! reset weights
@@ -1624,7 +1630,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                pmassav,1,hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,irenderplot), &
                                dat(1:ninterp,iz),icolourme(1:ninterp), &
                                ninterp,xmin,ymin,datpix,brightness,npixx,npixy,pixwidth,zobservertemp, &
-                               dzscreentemp,rkappa,huge(zslicepos))
+                               dzscreentemp,rkappa,huge(zslicepos),iverbose)
                           endif
                        else
                           !!--do fast projection of z integrated data (e.g. column density)
@@ -1639,7 +1645,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                   xplot(1:ninterp),yplot(1:ninterp),zplot(1:ninterp), &
                                   hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,irenderplot), &
                                   icolourme(1:ninterp),ninterp,xmin,ymin,datpix,npixx,npixy,pixwidth, &
-                                  pixwidthy,inormalise,zobservertemp,dzscreentemp,ifastrender)
+                                  pixwidthy,inormalise,zobservertemp,dzscreentemp,ifastrender,iverbose)
                           endif
                           !!--same but for contour plot
                           if (icontourplot.gt.0 .and. icontourplot.le.numplot) then
@@ -1657,7 +1663,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                      xplot(1:ninterp),yplot(1:ninterp),zplot(1:ninterp), &
                                      hh(1:ninterp),weight(1:ninterp),dat(1:ninterp,icontourplot), &
                                      icolourme(1:ninterp),ninterp,xmin,ymin,datpixcont,npixx,npixy,pixwidth, &
-                                     pixwidthy,inormalise,zobservertemp,dzscreentemp,ifastrender)
+                                     pixwidthy,inormalise,zobservertemp,dzscreentemp,ifastrender,iverbose)
                              endif
                              gotcontours = .true.
 
@@ -1665,7 +1671,8 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                                 call set_weights(weight,dat,iamtype,UseTypeInRenderings)
                           endif
                           !!--adjust the units of the z-integrated quantity
-                          if (iRescale .and. units(ih).gt.0. .and. .not.inormalise) then
+                          if (iRescale .and. units(ih).gt.0. .and. .not.inormalise &
+                              .and. coord_is_length(iplotz,icoordsnew)) then
                              datpix = datpix*(unitzintegration/units(ih))
                              if (gotcontours) then
                                 datpixcont = datpixcont*(unitzintegration/units(ih))
@@ -1714,7 +1721,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                  xminadapt(irenderplot) = min(ymin,xminadapt(irenderplot))
                  xmaxadapt(irenderplot) = max(ymax,xmaxadapt(irenderplot))
                  if (iadapt) then
-                    print*,' adapting y limits'
+                    if (iverbose > 1) print*,' adapting y limits'
                  else
                     !!--or use fixed limits and apply transformations
                     ymin = lim(irenderplot,1)
@@ -1763,8 +1770,9 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                  if (gotcontours) labelcont = label(icontourplot)
 
                  !!--set label for column density (projection) plots
-                 if (ndim.eq.3 .and..not. x_sec .and..not.(use3Dperspective.and.use3Dopacityrendering)) then
-                    labelrender = integrate_label(labelrender,irender,iz,inormalise,iRescale,&
+                 if (ndim.eq.3 .and..not. x_sec .and..not.use3Dopacityrendering) then
+                    inorm_label = (inormalise .or. .not.coord_is_length(iz,icoordsnew))
+                    labelrender = integrate_label(labelrender,irender,iz,inorm_label,iRescale,&
                                                   labelzintegration,projlabelformat,iapplyprojformat)
                     if (gotcontours) labelcont = integrate_label(labelcont,icontourplot,iz,inormalise,&
                                                  iRescale,labelzintegration,projlabelformat,iapplyprojformat)
@@ -1806,7 +1814,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
 
                     if (.not.interactivereplot .and. .not.isetrenderlimits) then
                        if (iadapt) then
-                          !print*,'adapting render limits'
+                          if (iverbose > 1) print*,'adapting render limits'
                           rendermin = renderminadapt
                           rendermax = rendermaxadapt
                        else
@@ -1817,7 +1825,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                        endif
                        if (gotcontours) then
                           if (iadapt) then
-                             print*,'adapting contour limits'
+                             if (iverbose > 1) print*,'adapting contour limits'
                              contmin = contminadapt
                              contmax = contmaxadapt
                           elseif (icontourplot.eq.irenderplot .and. lim2set(icontourplot)) then
@@ -1955,15 +1963,9 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
                       npixx,npixy,xmin,ymin,pixwidth,pixwidthy, &
                       1,iplotcont,0,ncontours,.false.,ilabelcont,contmin,contmax)
                  else
-                    if (use3Dperspective .and. use3Dopacityrendering .and. ndim.eq.3 .and. writeppm) then
-                       call render_pix(datpix,rendermin,rendermax,trim(labelrender), &
-                         npixx,npixy,xmin,ymin,pixwidth,pixwidthy,    &
-                         icolours,iplotcont,0,ncontours,.false.,ilabelcont,contmin,contmax,alpha=brightness)
-                    else
-                       call render_pix(datpix,rendermin,rendermax,trim(labelrender), &
-                         npixx,npixy,xmin,ymin,pixwidth,pixwidthy,    &
-                         icolours,iplotcont,0,ncontours,.false.,ilabelcont,contmin,contmax)
-                    endif
+                    call render_pix(datpix,rendermin,rendermax,trim(labelrender), &
+                      npixx,npixy,xmin,ymin,pixwidth,pixwidthy,    &
+                      icolours,iplotcont,0,ncontours,.false.,ilabelcont,contmin,contmax)
                  endif
 
                  !!--contour/2nd render plot of different quantity on top of 1st rendering
@@ -1981,26 +1983,13 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
 
                  PlotOnRender_tmp(:) = PlotOnRenderings(:)
                  isinktype = get_sink_type(ntypes)
-                 if (use3Dperspective .and. use3Dopacityrendering .and. rendersinks .and. isinktype > 0) then
+                 if (use3Dopacityrendering .and. rendersinks .and. isinktype > 0) then
                     PlotOnRender_tmp(isinktype) = .false.
                  endif
 
-                 !!--write ppm if interpolate3D_opacity
-                 if ((.not. plotlib_supports_alpha) .and. &
-                     (use3Dperspective .and. use3Dopacityrendering .and. ndim.eq.3 .and. writeppm)) then
-                    !!--plot non-gas particle types (e.g. sink particles) on top (and to ppm)
-                    call particleplot(xplot(1:ntoti),yplot(1:ntoti), &
-                      zplot(1:ntoti),hh(1:ntoti),ntoti,iplotx,iploty, &
-                      icolourme(1:ntoti),iamtype,npartoftype(:),PlotOnRender_tmp(:), &
-                      (x_sec.or.use3Dperspective),zslicemin,zslicemax,labelz, &
-                      xmin,xmax,ymin,ymax,ifastparticleplot,datpix,npixx,npixy,rendermax,brightness)
-
-                    call write_pixmap_ppm(datpix,npixx,npixy,xmin,ymin,pixwidth,rendermin,rendermax, &
-                                       trim(labelrender),((istep-1)*nframesloop + iframe),brightness)
                  !!--dump pixmap to file if option set
-                 elseif (iwritepixmap) then
-
-                    !!--plot non-gas particle types (e.g. sink particles) on top (and to ppm)
+                 if (iwritepixmap) then
+                    !!--plot non-gas particle types (e.g. sink particles) on top (and to pixmap)
                     call particleplot(xplot(1:ntoti),yplot(1:ntoti), &
                       zplot(1:ntoti),hh(1:ntoti),ntoti,iplotx,iploty, &
                       icolourme(1:ntoti),iamtype,npartoftype(:),PlotOnRender_tmp(:), &
@@ -2009,7 +1998,6 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
 
                     call writepixmap(datpix,npixx,npixy,xmin,ymin,pixwidth,rendermin,rendermax,labelrender,&
                                      unitslabel(irenderplot),((istep-1)*nframesloop + iframe),x_sec,rootname(ifileopen))
-                 !!--no ppm write
                  else
                     !!--plot non-gas particle types (e.g. sink particles) on top
                     call particleplot(xplot(1:ntoti),yplot(1:ntoti), &
@@ -2063,10 +2051,10 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
               !!--set label for projection plots (2268 or 2412 for integral sign)
               if (ndim.eq.3 .and..not. x_sec) then
                  if (iRescale) then
-                    labelvecplot = '\(2268) '//trim(labelvecplot)//' d'// &
+                    labelvecplot = '\int '//trim(labelvecplot)//' d'// &
                       trim(label(iz)(1:index(label(iz),unitslabel(iz))-1))//' [code units]'
                  else
-                    labelvecplot = '\(2268) '//trim(labelvecplot)//' d'//trim(label(iz))
+                    labelvecplot = '\int '//trim(labelvecplot)//' d'//trim(label(iz))
                  endif
               endif
               pixwidthvec  = (xmax-xmin)/real(npixvec)
@@ -2461,7 +2449,7 @@ subroutine plotstep(ipos,istep,istepsonpage,irender_nomulti,icontour_nomulti,ive
               endif
            endif
            if (iadapt .and. .not.interactivereplot) then
-              print "(1x,a)",'adapting '//trim(labely)//' limits'
+              if (iverbose > 1) print "(1x,a)",'adapting '//trim(labely)//' limits'
               ymin = yminadapti
               ymax = ymaxadapti
            endif
@@ -2954,15 +2942,15 @@ contains
     !--------------------------------------------------------------
     if (((interactive .and. ((ipanel.eq.nacross*ndown .and. istepsonpage.eq.nstepsperpage) .or. lastplot)) &
         .or. (iadapt .and. (istepsonpage.eq.nstepsperpage .or. lastplot))) .and. .not.dum) then
-       if (plot_qcur()) then
-          print*,trim(labelx),' min, max = ',xmin,xmax
-          print*,trim(labely),' min, max = ',ymin,ymax
-          if (irender.gt.0 .and. .not.(ndim.eq.2 .and. x_sec)) then
-             print*,trim(labelrender),' min, max = ',rendermin,rendermax
-             if (gotcontours) then
-                print*,trim(labelcont),' min, max = ',contmin,contmax
-             endif
-          endif
+       if (.not.same_limits(xmin,xmax,xminwas,xmaxwas)) &
+          print "(1x,a,' min, max = ',g0,2x,g0)",trim(labelx),xmin,xmax
+       if (.not.same_limits(ymin,ymax,yminwas,ymaxwas)) &
+          print "(1x,a,' min, max = ',g0,2x,g0)",trim(labely),ymin,ymax
+       if (irender.gt.0 .and. .not.(ndim.eq.2 .and. x_sec)) then
+          if (.not.same_limits(rendermin,rendermax,renderminwas,rendermaxwas)) &
+             print "(1x,a,' min, max = ',g0,2x,g0)",trim(labelrender),rendermin,rendermax
+          if (gotcontours .and. .not.same_limits(contmin,contmax,contminwas,contmaxwas)) &
+             print "(1x,a,' min, max = ',g0,2x,g0)",trim(labelcont),contmin,contmax
        endif
     endif
     !--------------------------------------------------------------
@@ -3375,18 +3363,21 @@ contains
     use interpolation,    only:set_interpolation_weights
     use settings_units,   only:unit_interp
     use settings_xsecrot, only:rendersinks,use3Dopacityrendering
+    use labels,           only:get_sink_type
     implicit none
     real, dimension(:), intent(out) :: weighti
     real, dimension(:,:), intent(in) :: dati
     integer(kind=int1), dimension(:), intent(in) :: iamtypei
     logical, dimension(:), intent(in) :: usetype
+    integer :: isinktype
 
+    isinktype = get_sink_type(ntypes)
     ihavesetweights = .true.
     inormalise = inormalise_interpolations
     call set_interpolation_weights(weighti,dati,iamtypei,usetype,&
          ninterp,npartoftype,masstype,ntypes,ndataplots,irho,ipmass,ih,ndim,&
          iRescale,idensityweightedinterpolation,inormalise,units,unit_interp,required,&
-         (use3Dopacityrendering .and. rendersinks))
+         (use3Dopacityrendering .and. rendersinks),isinktype)
 
     return
  end subroutine set_weights
@@ -3458,14 +3449,14 @@ contains
                     hh(1:ninterp),weight(1:ninterp), &
                     vecplot(1,1:ninterp),vecplot(2,1:ninterp), &
                     icolourme(1:ninterp),ninterp,xmin,ymin,zslicepos, &
-                    vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy,inormalise)
+                    vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy,inormalise,iverbose)
                else
                   call interpolate3D_xsec_vec(xplot(1:ninterp), &
                     yplot(1:ninterp),zplot(1:ninterp), &
                     hh(1:ninterp),weight(1:ninterp), &
                     dat(1:ninterp,ivecx),dat(1:ninterp,ivecy), &
                     icolourme(1:ninterp),ninterp,xmin,ymin,zslicepos, &
-                    vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy,inormalise)
+                    vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy,inormalise,iverbose)
                endif
             else
                ! don't have smoothing length, use averaging
@@ -3528,14 +3519,14 @@ contains
                        weight(1:ninterp),vecplot(1,1:ninterp),vecplot(2,1:ninterp), &
                        icolourme(1:ninterp),ninterp,xmin,ymin, &
                        vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy,&
-                       .false.,zobservertemp,dzscreentemp)
+                       .false.,zobservertemp,dzscreentemp,iverbose)
                   else
                      call interpolate3D_proj_vec(xplot(1:ninterp), &
                        yplot(1:ninterp),zplot(1:ninterp),hh(1:ninterp), &
                        weight(1:ninterp),dat(1:ninterp,ivecx),dat(1:ninterp,ivecy), &
                        icolourme(1:ninterp),ninterp,xmin,ymin, &
                        vecpixx,vecpixy,numpixx,numpixy,pixwidthvec,pixwidthvecy, &
-                       .false.,zobservertemp,dzscreentemp)
+                       .false.,zobservertemp,dzscreentemp,iverbose)
                   endif
                else
                ! don't have smoothing length, use averaging
@@ -3716,7 +3707,7 @@ subroutine adapt_limits(iplot,xploti,xmini,xmaxi,xminadaptive,xmaxadaptive,label
   use labels,          only:is_coord
   use limits,          only:assert_sensible_limits
   use settings_limits, only:scalemax,iadapt,iadaptcoords
-  use settings_data,   only:debugmode,ndim
+  use settings_data,   only:debugmode,ndim,iverbose
   use settings_part,   only:iplotline
   implicit none
   integer,            intent(in)    :: iplot
@@ -3766,13 +3757,26 @@ subroutine adapt_limits(iplot,xploti,xmini,xmaxi,xminadaptive,xmaxadaptive,label
   if (.not.interactivereplot) then
      if (((is_coord(iplot,ndim) .and. iadaptcoords) &
      .or.(.not.is_coord(iplot,ndim) .and. iadapt)) .and. ipagechange) then
-        print "(1x,a)",'adapting '//trim(labeli)//' limits'
+        if (iverbose > 1) print "(1x,a)",'adapting '//trim(labeli)//' limits'
         xmini = xminadaptive
         xmaxi = xmaxadaptive
      endif
   endif
 
 end subroutine adapt_limits
+
+!-------------------------------------------------------------------
+! check if limits were the same as previous time printout occurred
+!-------------------------------------------------------------------
+logical function same_limits(min,max,minwas,maxwas)
+ real, intent(in)    :: min,max
+ real, intent(inout) :: minwas,maxwas
+
+ same_limits = (abs(min-minwas) < tiny(min) .and. abs(max-maxwas) < tiny(max))
+ minwas = min
+ maxwas = max
+
+end function same_limits
 
 !-------------------------------------------------------------------
 ! interface to log, inverse transformations:

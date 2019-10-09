@@ -156,7 +156,7 @@ contains
      endif
   enddo over_tags
   if (matched) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_int
 
@@ -186,7 +186,7 @@ contains
      endif
   enddo over_tags
   if (matched) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_real8
 
@@ -216,7 +216,7 @@ contains
      endif
   enddo over_tags
   if (matched) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_real4
 
@@ -243,7 +243,7 @@ contains
      endif
   enddo over_tags
   if (nmatched==size(ival)) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_intarr
 
@@ -271,7 +271,7 @@ contains
      endif
   enddo over_tags
   if (nmatched==size(rval)) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_real8arr
 
@@ -299,7 +299,7 @@ contains
      endif
   enddo over_tags
   if (nmatched==size(rval)) ierr = 0
-  if (ierr /= 0) print "(a)",' ERROR: could not find '//trim(adjustl(tag))//' in header'
+  if (ierr /= 0) print "(a)",' WARNING: could not find '//trim(adjustl(tag))//' in header'
 
  end subroutine extract_real4arr
 
@@ -419,6 +419,43 @@ contains
   endif
 
  end subroutine fake_header_tags
+
+ !----------------------------------------------------------------------
+ ! print information about dust grain sizes found in header
+ !----------------------------------------------------------------------
+ subroutine print_dustgrid_info(ntags,tags,vals,mgas)
+  use asciiutils,     only:match_tag
+  use settings_units, only:get_nearest_length_unit
+  integer, intent(in) :: ntags
+  character(len=*), intent(in) :: tags(ntags)
+  real, intent(in) :: vals(ntags),mgas
+  integer :: i,j,nd
+
+  nd = 0
+  if (match_tag(tags,'grainsize1') > 0) print "(/,a)",' Dust grid:'
+  do i=1,ntags
+     if (index(tags(i),'grainsize') > 0) then
+       nd = nd + 1
+       if (vals(i)*1.e4 > 1000.) then
+          print "(i3,a,1pg10.3,a)",nd,': ',vals(i)*1.e1,'mm'
+       elseif (vals(i) > 0.) then
+          print "(i3,a,1pg10.3,a)",nd,': ',vals(i)*1.e4,'micron'
+       endif
+    endif
+  enddo
+  if (nd > 0) print "(a)"
+
+  ! nd = 0
+  ! print *,' mgas = ',mgas/(2d33/umass)
+  ! do i=1,ntags
+  !    if (index(tags(i),'mdust_in') > 0) then
+  !       nd = nd + 1
+  !       if (vals(i) > 0.) print "(i3,a,1pg10.3,a,1pg10.3)",nd,': mass = ',vals(i)/(2d33/umass),&
+  !                ' Msun; d/g = ',vals(i)/mgas
+  !    endif
+  ! enddo
+
+ end subroutine print_dustgrid_info
 
  !----------------------------------------------------------------------
  ! Routine to read the header of sphNG dump files and extract relevant
@@ -599,9 +636,7 @@ contains
      call extract('umass',umass,real8arr,tags,nreal8s,ierrs(2))
      call extract('utime',utime,real8arr,tags,nreal8s,ierrs(3))
      call extract('umagfd',umagfd,real8arr,tags,nreal8s,ierrs(4))
-     if (any(ierrs /= 0)) then
-        print "(a)",' *** error reading units'
-     endif
+
      ! extract the number of dust arrays are in the file
      if (onefluid_dust) ndusttypes = extract_ndusttypes(tags,tagsreal,intarr,nints)
 !
@@ -702,7 +737,7 @@ contains
   integer, intent(inout) :: npart,ntotal
   logical, intent(in)  :: debug
   logical, intent(out) :: gotbinary
-  real :: rhozero,tfreefall,tff,radL1,PhiL1,Er,RK2,dtmax,tolh
+  real :: rhozero,tfreefall,tff,radL1,PhiL1,Er,RK2,dtmax
   real :: massoftypei(ntypes)
   integer :: i,ierrs(10)
   integer :: itype
@@ -783,10 +818,8 @@ contains
   hfact = 1.2
   if (phantomdump) then
      call extract('hfact',hfact,realarr,tags,nreals,ierrs(1))
-     call extract('tolh',tolh,realarr,tags,nreals,ierrs(2))
-     print "(a,es12.4,a,f6.3,a,f5.2,a,es8.1)", &
-           ' time = ',time,' gamma = ',gamma, &
-           ' hfact = ',hfact,' tolh = ',tolh
+     print "(a,es12.4,a,f6.3,a,f5.2)", &
+           ' time = ',time,' gamma = ',gamma,' hfact = ',hfact
   elseif (batcode) then
      call extract('radL1',radL1,realarr,tags,nreals,ierrs(1))
      call extract('PhiL1',PhiL1,realarr,tags,nreals,ierrs(2))
@@ -1477,7 +1510,12 @@ subroutine read_data(rootname,indexstart,iposn,nstepsread)
       nhdr = min(nreals,maxhdr)
       headervals(1:nhdr,j) = dummyreal(1:nhdr)
       headertags(1:nhdr)   = tagsreal(1:nhdr)
+      ! convert grain sizes to cm
+      do i=1,nhdr
+         if (index(headertags(i),'grainsize') > 0) headervals(i,j) = headervals(i,j)*udist
+      enddo
       call make_tags_unique(nhdr,headertags)
+      if (iverbose > 0) call print_dustgrid_info(nhdr,headertags,headervals,masstype(1,j)*npartoftype(1,j))
 
       nstepsread = nstepsread + 1
       !

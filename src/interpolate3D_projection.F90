@@ -1,6 +1,6 @@
 !-----------------------------------------------------------------
 !
-!  This file is (or was) part of SPLASH, a visualisation tool 
+!  This file is (or was) part of SPLASH, a visualisation tool
 !  for Smoothed Particle Hydrodynamics written by Daniel Price:
 !
 !  http://users.monash.edu.au/~dprice/splash
@@ -47,11 +47,14 @@ subroutine setup_integratedkernel
 !     tabulates the integral through the cubic spline kernel
 !     tabulated in (r/h)**2 so that sqrt is not necessary
 !-------------------------------------------------------------
- use kernels, only:wfunc,radkernel2,cnormk3D
+ use kernels, only:wfunc,radkernel2,cnormk3D,select_kernel
  implicit none
  integer :: i,j
  real :: rxy2,deltaz,dz,z,q2,wkern,coldens
  integer, parameter :: npts = 100
+
+ ! force cubic kernel if not already set
+ if (.not.associated(wfunc)) call select_kernel(0)
 
  !print "(1x,a)",'setting up integrated kernel table...'
  dq2table = radkernel2/maxcoltable
@@ -82,7 +85,7 @@ subroutine setup_integratedkernel
     coltable(i)=2.0*coldens*cnormk3D
  end do
  coltable(maxcoltable) = 0.
- 
+
  return
 end subroutine setup_integratedkernel
 !
@@ -122,7 +125,7 @@ end function wfromtable
 !     that is, we compute the smoothed array according to
 !
 !     datsmooth(pixel) = sum_b weight_b dat_b W(r-r_b, h_b)
-! 
+!
 !     where _b is the quantity at the neighbouring particle b and
 !     W is the smoothing kernel, for which we use the usual cubic spline
 !
@@ -152,7 +155,7 @@ end function wfromtable
 
 subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
      xmin,ymin,datsmooth,npixx,npixy,pixwidthx,pixwidthy,normalise,zobserver,dscreen, &
-     useaccelerate)
+     useaccelerate,iverbose)
 
   use kernels, only:radkernel,radkernel2
   use timing,  only:wall_time,print_time
@@ -165,6 +168,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
   logical, intent(in) :: normalise
   real, dimension(npixx,npixy) :: datnorm
   logical, intent(in) :: useaccelerate
+  integer, intent(in) :: iverbose
   real :: row(npixx)
 
   integer :: ipix,jpix,ipixmin,ipixmax,jpixmin,jpixmax,npixpartx,npixparty
@@ -183,7 +187,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
   real :: t_start,t_end,t_used
   logical :: iprintprogress,use3Dperspective,accelerate
   character(len=32) :: string
-  
+
   datsmooth = 0.
   term = 0.
   string = 'projecting'
@@ -201,14 +205,14 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
   !$omp end master
   !$omp end parallel
 
-  if (ncpus > 0) then
+  if (ncpus > 0 .and. iverbose >= 0) then
      write (*,"(1x,a,': ',i4,' x ',i4,' on ',i3,' cpus')") trim(string),npixx,npixy,ncpus
-  else
+  elseif (iverbose >= 0) then
      write (*,"(1x,a,': ',i4,' x ',i4)") trim(string),npixx,npixy
   endif
 
   if (pixwidthx.le.0. .or. pixwidthy.le.0) then
-     print "(1x,a)",'ERROR: pixel width <= 0'
+     if (iverbose >= -1) print "(1x,a)",'ERROR: pixel width <= 0'
      return
   endif
   !nout = count(hh(1:npart).le.0.)
@@ -225,7 +229,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
   !--print a progress report if it is going to take a long time
   !  (a "long time" is, however, somewhat system dependent)
   !
-  iprintprogress = (npart .ge. 100000) .or. (npixx*npixy .gt.100000)
+  iprintprogress = (npart .ge. 100000) .or. (npixx*npixy .gt.100000) .and. iverbose >= 0
   !
   !--loop over particles
   !
@@ -250,7 +254,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
   !dhmin3 = 1./(hmin*hmin*hmin)
 !
 !--store x value for each pixel (for optimisation)
-!  
+!
   do ipix=1,npixx
      xpix(ipix) = xminpix + ipix*pixwidthx
   enddo
@@ -301,7 +305,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
         zfrac = abs(dscreen/(z(i)-zobserver))
         hi = hi*zfrac
      endif
-     
+
      radkern = radkernel*hi ! radius of the smoothing kernel
 
      !--cycle as soon as we know the particle does not contribute
@@ -360,7 +364,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
                  .and. npixpartx.gt.5 .and. npixparty.gt.5 &
                  .and. ipixmin.ge.1 .and. ipixmax.le.npixx &
                  .and. jpixmin.ge.1 .and. jpixmax.le.npixy
-     
+
      if (accelerate) then
         !--adjust xi, yi to centre of pixel
         xi = xminpix + ipixi*pixwidthx
@@ -401,7 +405,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
            enddo
            if (jpix.ne.jpixi) then
               jpixcopy = jpixi - (jpix-jpixi)
-              !--copy top right -> bottom left 
+              !--copy top right -> bottom left
               do ipix=ipixmin,ipixi-1
                  !$omp atomic
                  datsmooth(ipix,jpixcopy) = datsmooth(ipix,jpixcopy) + row(ipixmax-(ipix-ipixmin))
@@ -413,7 +417,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
               enddo
            endif
         enddo
-          
+
      else
         ipixmin = int((xi - radkern - xmin)/pixwidthx)
         ipixmax = int((xi + radkern - xmin)/pixwidthx)
@@ -451,7 +455,7 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
                  !
                  !$omp atomic
                  datsmooth(ipix,jpix) = datsmooth(ipix,jpix) + term*wab
-   
+
                  if (normalise) then
                     !$omp atomic
                     datnorm(ipix,jpix) = datnorm(ipix,jpix) + termnorm*wab
@@ -478,17 +482,17 @@ subroutine interpolate3D_projection(x,y,z,hh,weight,dat,itype,npart, &
 !
   if (nsubgrid.gt.1) then
      nfull = int((xmax-xmin)/(hminall)) + 1
-     if (nsubgrid.gt.0.1*nok) &
-     print "(a,i9,a,/,a,i6,a)",' Warning: pixel size > 2h for ',nsubgrid,' particles', &
-                               '          need',nfull,' pixels for full resolution'
+     if (nsubgrid.gt.0.1*nok .and. iverbose >= -1) print "(a,i9,a,/,a,i6,a)",&
+      ' Warning: pixel size > 2h for ',nsubgrid,' particles', &
+      '          need',nfull,' pixels for full resolution'
   endif
 !
 !--get/print timings
 !
   call wall_time(t_end)
   t_used = t_end - t_start
-  if (t_used.gt.10.) call print_time(t_used)
-  
+  if (t_used.gt.10. .and. iverbose >= 0) call print_time(t_used)
+
   return
 
 end subroutine interpolate3D_projection
@@ -510,11 +514,12 @@ end subroutine interpolate3D_projection
 !--------------------------------------------------------------------------
 
 subroutine interpolate3D_proj_vec(x,y,z,hh,weight,vecx,vecy,itype,npart,&
-     xmin,ymin,vecsmoothx,vecsmoothy,npixx,npixy,pixwidthx,pixwidthy,normalise,zobserver,dscreen)
+     xmin,ymin,vecsmoothx,vecsmoothy,npixx,npixy,pixwidthx,pixwidthy,normalise,&
+     zobserver,dscreen,iverbose)
 
   use kernels, only:radkernel,radkernel2
   implicit none
-  integer, intent(in) :: npart,npixx,npixy
+  integer, intent(in) :: npart,npixx,npixy,iverbose
   real, intent(in), dimension(npart) :: x,y,z,hh,weight,vecx,vecy
   integer, intent(in), dimension(npart) :: itype
   real, intent(in) :: xmin,ymin,pixwidthx,pixwidthy,zobserver,dscreen
@@ -531,23 +536,23 @@ subroutine interpolate3D_proj_vec(x,y,z,hh,weight,vecx,vecy,itype,npart,&
   termx = 0.
   termy = 0.
   if (normalise) then
-     print "(1x,a)",'projecting vector (normalised) from particles to pixels...'
+     if (iverbose >= 0) print "(1x,a)",'projecting vector (normalised) from particles to pixels...'
      allocate(datnorm(npixx,npixy),stat=ierr)
      if (ierr /= 0) then
-        print "(a)",'interpolate3D_proj_vec: error allocating memory'
+        if (iverbose >= -1) print "(a)",'interpolate3D_proj_vec: error allocating memory'
         return
      endif
      datnorm = 0.
   else
-     print "(1x,a)",'projecting vector from particles to pixels...'  
+     if (iverbose >= 0) print "(1x,a)",'projecting vector from particles to pixels...'
   endif
   if (pixwidthx.le.0. .or. pixwidthy.le.0.) then
-     print "(a)",'interpolate3D_proj_vec: error: pixel width <= 0'
+     if (iverbose >= -1) print "(a)",'interpolate3D_proj_vec: error: pixel width <= 0'
      return
   endif
   !
   !--loop over particles
-  !      
+  !
 !$omp parallel default(none) &
 !$omp shared(hh,z,x,y,weight,vecx,vecy,itype,vecsmoothx,vecsmoothy,npart) &
 !$omp shared(xmin,ymin,pixwidthx,pixwidthy,zobserver,dscreen,datnorm) &
@@ -583,13 +588,13 @@ subroutine interpolate3D_proj_vec(x,y,z,hh,weight,vecx,vecy,itype,npart,&
      radkern = radkernel*hsmooth    ! radius of the smoothing kernel
      hi1 = 1./hsmooth
      hi21 = hi1*hi1
-        
+
      termx = const*vecx(i)
      termy = const*vecy(i)
      termnorm = const
      !
      !--for each particle work out which pixels it contributes to
-     !               
+     !
      ipixmin = int((x(i) - radkern - xmin)/pixwidthx)
      jpixmin = int((y(i) - radkern - ymin)/pixwidthy)
      ipixmax = int((x(i) + radkern - xmin)/pixwidthx) + 1
@@ -622,10 +627,16 @@ subroutine interpolate3D_proj_vec(x,y,z,hh,weight,vecx,vecy,itype,npart,&
               wab = wfromtable(q2)
               !
               !--calculate data value at this pixel using the summation interpolant
-              !  
+              !
+              !$omp atomic
               vecsmoothx(ipix,jpix) = vecsmoothx(ipix,jpix) + termx*wab
+              !$omp atomic
               vecsmoothy(ipix,jpix) = vecsmoothy(ipix,jpix) + termy*wab
-              if (normalise) datnorm(ipix,jpix) = datnorm(ipix,jpix) + termnorm*wab
+
+              if (normalise) then
+                 !$omp atomic
+                 datnorm(ipix,jpix) = datnorm(ipix,jpix) + termnorm*wab
+              endif
            endif
 
         enddo
@@ -698,7 +709,7 @@ subroutine interp3D_proj_vec_synctron(x,y,z,hh,weight,vecx,vecy,itype,npart,&
   real :: termx,termy,term,dy,dy2,ypix,xi,yi,zi
   real :: crdens,emissivity,Bperp,angle,pintrinsic,rcyl
   real, dimension(npixx) :: dx2i
-  
+
   if (getIonly) then
      stokesI = 0.
   else
@@ -721,14 +732,14 @@ subroutine interp3D_proj_vec_synctron(x,y,z,hh,weight,vecx,vecy,itype,npart,&
   if (present(utherm) .and. present(uthermcutoff)) then
      print*,' using only particles with utherm > ',uthermcutoff
   endif
-  
+
   if (pixwidth.le.0.) then
      print "(a)",'interpolate3D_proj_vec_synchrotron: error: pixel width <= 0'
      return
   endif
   !
   !--loop over particles
-  !      
+  !
 !$omp parallel default(none) &
 !$omp shared(hh,z,x,y,weight,vecx,vecy,itype,stokesq,stokesu,stokesi,npart) &
 !$omp shared(xmin,ymin,pixwidth,rcrit,zcrit,alpha,radkernel,radkernel2) &
@@ -768,16 +779,16 @@ subroutine interp3D_proj_vec_synctron(x,y,z,hh,weight,vecx,vecy,itype,npart,&
      radkern = radkernel*hsmooth    ! radius of the smoothing kernel
      xi = x(i)
      yi = y(i)
-     
+
      !--assumed distribution of cosmic ray electrons in galaxy
      !  (should use UNROTATED x,y if rotation added)
      rcyl = sqrt(xi**2 + yi**2)
      crdens = exp(-rcyl/rcrit - abs(zi)/zcrit)
-     
+
      !--calculate synchrotron emissivity based on Bperp and a spectral index alpha
      Bperp = sqrt(vecx(i)**2 + vecy(i)**2)
      emissivity = crdens*Bperp**(1. + alpha)
-     
+
      if (getIonly) then
         term = emissivity*const
         termx = 0.
@@ -785,13 +796,13 @@ subroutine interp3D_proj_vec_synctron(x,y,z,hh,weight,vecx,vecy,itype,npart,&
      else
         term = 0.
         !--faraday rotation would change angle here
-        angle = atan2(vecy(i),vecx(i))     
+        angle = atan2(vecy(i),vecx(i))
         termx = pintrinsic*emissivity*const*COS(angle)
         termy = pintrinsic*emissivity*const*SIN(angle)
      endif
      !
      !--for each particle work out which pixels it contributes to
-     !               
+     !
      ipixmin = int((xi - radkern - xmin)/pixwidth)
      jpixmin = int((yi - radkern - ymin)/pixwidth)
      ipixmax = int((xi + radkern - xmin)/pixwidth) + 1
@@ -832,9 +843,12 @@ subroutine interp3D_proj_vec_synctron(x,y,z,hh,weight,vecx,vecy,itype,npart,&
               !--calculate data value at this pixel using the summation interpolant
               !
               if (getIonly) then
-                 stokesI(ipix,jpix) = stokesI(ipix,jpix) + term*wab           
+                 !$omp atomic
+                 stokesI(ipix,jpix) = stokesI(ipix,jpix) + term*wab
               else
+                 !$omp atomic
                  stokesQ(ipix,jpix) = stokesQ(ipix,jpix) + termx*wab
+                 !$omp atomic
                  stokesU(ipix,jpix) = stokesU(ipix,jpix) + termy*wab
               endif
            endif

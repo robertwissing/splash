@@ -15,7 +15,7 @@
 !  a) You must cause the modified files to carry prominent notices
 !     stating that you changed the files and the date of any change.
 !
-!  Copyright (C) 2005-2018 Daniel Price. All rights reserved.
+!  Copyright (C) 2005-2019 Daniel Price. All rights reserved.
 !  Contact: daniel.price@monash.edu
 !
 !  The plotting API for SPLASH 2.0 was written by James Wetter
@@ -27,7 +27,7 @@ program splash
 !---------------------------------------------------------------------------------
 !
 !     SPLASH - a plotting utility for SPH data in 1, 2 and 3 dimensions
-!     Copyright (C) 2005-2018 Daniel Price
+!     Copyright (C) 2005-2019 Daniel Price
 !     daniel.price@monash.edu
 !
 !     --------------------------------------------------------------------------
@@ -48,6 +48,23 @@ program splash
 !
 !     -------------------------------------------------------------------------
 !     Version history/ Changelog:
+!     2.9.1  : (xx/xx/19)
+!             cleaner menu options for units and calculated quantities;
+!             surface rendering allowed with 3D perspective turned off;
+!             automatic labelling of grain sizes in density and column density plots;
+!             adaptive limits on log colour bars show 3 dex range by default;
+!             auto-adjust limits to device aspect ratio works with multiple panels;
+!             bug fixes with r-z rendering
+!     2.9.0  : (05/04/19)
+!             general header quantities are read and available in function parser;
+!             more robust label detection and parsing during ascii data read;
+!             splash to grid works in non-cartesian geometries; added flared and
+!             log-flared coordinate systems; Doppler shift colour bar; can customise
+!             line style and colour when plotting multiple exact solutions; seg faults fixed;
+!             better plot tiling decisions; disappearing arrows bug fix; Rafikov disc-
+!             planet exact solution added; atan2 implemented in function parser;
+!             various multigrain phantom read fixes (incl. seg faults); exact rendering
+!             implemented in 2D; libsplash implemented for use as Python splash backend
 !     2.8.0  : (06/04/18)
 !             360/4pi video mode added; automatically read labels from ascii file headers;
 !             nearest sensible unit (e.g. au or pc) used by default; cactus hdf5 data read;
@@ -382,13 +399,14 @@ program splash
   use settings_page,      only:interactive,device,nomenu
   use settings_part,      only:initialise_coord_transforms
   use settings_render,    only:icolours,rgbfile
+  use settings_xsecrot,   only:xsec_nomulti
   use colours,            only:rgbtable,ncoltable,icustom
   implicit none
   integer :: i,ierr,nargs,ipickx,ipicky,irender,icontour,ivecplot
   logical :: ihavereadfilenames,evsplash,doconvert,useall,iexist,use_360
   character(len=240) :: string
   character(len=12)  :: convertformat
-  character(len=*), parameter :: version = 'v2.8.1beta [18th May 2018]'
+  character(len=*), parameter :: version = 'v2.9.1beta [27th May 2019]'
 
   !
   ! initialise some basic code variables
@@ -686,7 +704,7 @@ program splash
               stop
            endif
            if (irender.gt.0) then
-              if (.not.allowrendering(ipicky,ipickx)) then
+              if (.not.allowrendering(ipicky,ipickx,xsec_nomulti)) then
                  print "(a)",' ERROR: cannot render with x, y choice (must be coords)'
                  stop
               endif
@@ -757,16 +775,16 @@ subroutine print_header
 20 format(/,  &
    '  ( B | y ) ( D | a | n | i | e | l ) ( P | r | i | c | e )',/)
 
- print "(a)",'  ( '//trim(version)//' Copyright (C) 2005-2018 )'
+ print "(a)",'  ( '//trim(version)//' Copyright (C) 2005-2019 )'
  print 30
 30 format(/,    &
    ' * SPLASH comes with ABSOLUTELY NO WARRANTY.',/, &
    '   This is free software; and you are welcome to redistribute it ',/, &
    '   under certain conditions (see LICENCE file for details). *',/,/, &
-   ' Updates/userguide: http://users.monash.edu.au/~dprice/splash ',/, &
-   ' Email: daniel.price@monash.edu or splash-users@googlegroups.com',/, &
+   ' http://users.monash.edu.au/~dprice/splash ',/, &
+   ' daniel.price@monash.edu or splash-users@googlegroups.com',/, &
    ' Please cite Price (2007), PASA, 24, 159-173 (arXiv:0709.0832) if you ',/, &
-   ' use SPLASH in print and don''t forget to send pics for the gallery.',/)
+   ' use SPLASH in print and don''t forget to send pics for the gallery',/)
 
 end subroutine print_header
 

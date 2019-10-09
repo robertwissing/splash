@@ -77,11 +77,11 @@ contains
 
 subroutine interp3D_proj_opacity(x,y,z,pmass,npmass,hh,weight,dat,zorig,itype,npart, &
      xmin,ymin,datsmooth,brightness,npixx,npixy,pixwidth,zobserver,dscreenfromobserver, &
-     rkappa,zcut)
+     rkappa,zcut,iverbose)
 
   implicit none
   real, parameter :: pi=3.1415926536
-  integer, intent(in) :: npart,npixx,npixy,npmass
+  integer, intent(in) :: npart,npixx,npixy,npmass,iverbose
   real, intent(in), dimension(npart) :: x,y,z,hh,weight,dat,zorig
   real, intent(in), dimension(npmass) :: pmass
   integer, intent(in), dimension(npart) :: itype
@@ -109,22 +109,21 @@ subroutine interp3D_proj_opacity(x,y,z,pmass,npmass,hh,weight,dat,zorig,itype,np
   datsmooth = 0.
   term = 0.
   brightness = 0.
-  print "(1x,a)",'ray tracing from particles to pixels...'
   if (pixwidth.le.0.) then
-     print "(a)",'interpolate3D_opacity: error: pixel width <= 0'
+     if (iverbose >= -1) print "(a)",'interpolate3D_opacity: error: pixel width <= 0'
      return
   endif
-  if (any(hh(1:npart).le.tiny(hh))) then
+  if (any(hh(1:npart).le.tiny(hh)) .and. iverbose >= -1) then
      print*,'interpolate3D_opacity: warning: ignoring some or all particles with h < 0'
   endif
   !--check that npmass is sensible
   if (npmass.lt.1 .or. npmass.gt.npart) then
-     print*,'interpolate3D_opacity: ERROR in input number of particle masses '
+     if (iverbose >= -1) print*,'interpolate3D_opacity: ERROR in input number of particle masses '
      return
   endif
   !--these values for npmass are not sensible but the routine will still work
   if (npmass.ne.1 .and. npmass.ne.npart) then
-     print*,'WARNING: interpolate3D_opacity: number of particle masses input =',npmass
+     if (iverbose >= -1) print*,'WARNING: interpolate3D_opacity: number of particle masses input =',npmass
   endif
 
   if (abs(dscreenfromobserver).gt.tiny(dscreenfromobserver)) then
@@ -148,18 +147,18 @@ subroutine interp3D_proj_opacity(x,y,z,pmass,npmass,hh,weight,dat,zorig,itype,np
 !--average particle mass
   pmassav = sum(pmass(1:npmass))/real(npmass)
   rkappatemp = pi*hav*hav/(pmassav*coltable(0))
-  print*,'average h = ',hav,' average mass = ',pmassav
-  print "(1x,a,f6.2,a)",'typical surface optical depth is ~',rkappatemp/rkappa,' smoothing lengths'
+  if (iverbose >= 0) print "(1x,a,g8.2,a)",'ray tracing: surface depth ~ ',rkappatemp/rkappa,' smoothing lengths'
+  !print "(1x,a,f6.2,a)",'typical surface optical depth is ~',rkappatemp/rkappa,' smoothing lengths'
   !
   !--print a progress report if it is going to take a long time
   !  (a "long time" is, however, somewhat system dependent)
   !
-  iprintprogress = (npart .ge. 100000) .or. (npixx*npixy .gt.100000)
+  iprintprogress = ((npart .ge. 1000000) .or. (npixx*npixy .gt.500000)) .and. (iverbose >= 0)
   !
   !--loop over particles
   !
   iprintinterval = 25
-  if (npart.ge.1e6) iprintinterval = 10
+  if (npart.ge.1e7) iprintinterval = 10
   iprintnext = iprintinterval
 !
 !--get starting CPU time
@@ -205,7 +204,7 @@ subroutine interp3D_proj_opacity(x,y,z,pmass,npmass,hh,weight,dat,zorig,itype,np
      !
 !#ifndef _OPENMP
      if (iprintprogress) then
-        iprogress = 100*(ipart/npart)
+        iprogress = 100*(ipart/real(npart))
         if (iprogress.ge.iprintnext) then
            write(*,"('(',i3,'% -',i12,' particles done)')") iprogress,ipart
            iprintnext = iprintnext + iprintinterval
@@ -340,93 +339,23 @@ subroutine interp3D_proj_opacity(x,y,z,pmass,npmass,hh,weight,dat,zorig,itype,np
 !--get ending CPU time
 !
   if (nsink > 99) then
-     print*,'rendered ',nsink,' sink particles'
+     if (iverbose >= 0) print*,'rendered ',nsink,' sink particles'
   elseif (nsink > 0) then
-     print "(1x,a,i2,a)",'rendered ',nsink,' sink particles'
+     if (iverbose >= 0) print "(1x,a,i2,a)",'rendered ',nsink,' sink particles'
   endif
   call cpu_time(t_end)
   t_used = t_end - t_start
   if (t_used.gt.60.) then
      itmin = int(t_used/60.)
      tsec = t_used - (itmin*60.)
-     print "(1x,a,i4,a,f5.2,1x,a)",'completed in',itmin,' min ',tsec,'s'
-  else
-     print "(1x,a,f5.2,1x,a)",'completed in ',t_used,'s'
+     if (iverbose >= 0) print "(1x,a,i4,a,f5.2,1x,a)",'completed in',itmin,' min ',tsec,'s'
+  elseif (t_used > 10.) then
+     if (iverbose >= 0) print "(1x,a,f5.2,1x,a)",'completed in ',t_used,'s'
   endif
-  if (zcut.lt.huge(zcut)) print*,'slice contains ',nused,' of ',npart,' particles'
+  if (zcut.lt.huge(zcut) .and. iverbose >= 0) print*,'slice contains ',nused,' of ',npart,' particles'
 
   return
 
 end subroutine interp3D_proj_opacity
-
-subroutine interp3D_proj_opacity_writeppm(datsmooth,brightness,npixx,npixy,datmin,datmax,istep)
-  use colours, only:rgbtable,ncolours
-  implicit none
-  integer, intent(in) :: npixx,npixy
-  real, intent(in), dimension(npixx,npixy) :: datsmooth,brightness
-  real, intent(in) :: datmin,datmax
-  integer, intent(in) :: istep
-  character(len=120) :: filename
-!  real, dimension(3,npixx,npixy) :: rgb
-  real, dimension(3) :: rgbi,drgb
-  real :: dati,ddatrange,datfraci,ftable
-  integer :: ipix,jpix,ir,ib,ig,ierr,maxcolour,indexi
-!
-!--check for errors
-!
-  if (abs(datmax-datmin).gt.tiny(datmin)) then
-     ddatrange = 1./abs(datmax-datmin)
-  else
-     print "(a)",'error: datmin=datmax : pointless writing ppm file'
-     return
-  endif
-!
-!--write PPM--
-!
-  write(filename,"(a,i5.5,a)") 'splash_',istep,'.ppm'
-  open(unit=78,file=filename,status='replace',form='formatted',iostat=ierr)
-  if (ierr /=0) then
-     print*,'error opening ppm file'
-     return
-  endif
-  print "(a)", 'writing to file '//trim(filename)
-!
-!--PPM header
-!
-  maxcolour = 255
-  write(78,"(a)") 'P3'
-  write(78,"(a)") '# splash.ppm created by splash (c) 2005-2007 Daniel Price'
-  write(78,"(i4,1x,i4)") npixx, npixy
-  write(78,"(i3)") maxcolour
-!--pixel information
-  do jpix = npixy,1,-1
-     do ipix = 1,npixx
-
-        dati = datsmooth(ipix,jpix)
-        datfraci = (dati - datmin)*ddatrange
-        datfraci = max(datfraci,0.)
-        datfraci = min(datfraci,1.)
-        !--define colour for current particle
-        ftable = datfraci*ncolours
-        indexi = int(ftable) + 1
-        indexi = min(indexi,ncolours)
-        if (indexi.lt.ncolours) then
-        !--do linear interpolation from colour table
-           drgb(:) = rgbtable(:,indexi+1) - rgbtable(:,indexi)
-           rgbi(:) = rgbtable(:,indexi) + (ftable - int(ftable))*drgb(:)
-        else
-           rgbi(:) = rgbtable(:,indexi)
-        endif
-        rgbi(:) = rgbi(:)*min(brightness(ipix,jpix),1.0)
-        ir = max(min(int(rgbi(1)*maxcolour),maxcolour),0)
-        ig = max(min(int(rgbi(2)*maxcolour),maxcolour),0)
-        ib = max(min(int(rgbi(3)*maxcolour),maxcolour),0)
-        write(78,"(i3,1x,i3,1x,i3,2x)") ir,ig,ib
-     enddo
-  enddo
-  close(unit=78)
-
-  return
-end subroutine interp3D_proj_opacity_writeppm
 
 end module interpolate3D_opacity

@@ -37,7 +37,7 @@ contains
 !-----------------------------------------------------------------
 subroutine convert_to_grid(time,dat,ntypes,npartoftype,masstype,itype,ncolumns,filename,&
                            outformat,interpolateall)
- use labels,               only:label,labelvec,irho,ih,ipmass,ix,ivx,iBfirst
+ use labels,               only:label,labelvec,irho,ih,ipmass,ix,ivx,iBfirst,get_sink_type
  use limits,               only:lim,get_particle_subset
  use settings_units,       only:units,unit_interp
  use settings_data,        only:ndim,ndimV,UseTypeInRenderings,iRescale,required,debugmode,icoordsnew,xorigin
@@ -54,7 +54,6 @@ subroutine convert_to_grid(time,dat,ntypes,npartoftype,masstype,itype,ncolumns,f
  use params,               only:int8
  use geometry,             only:coord_is_length,igeom_cartesian,labelcoord,labelcoordsys
  use asciiutils,           only:strip
- implicit none
  integer, intent(in)                          :: ntypes,ncolumns
  integer, intent(in), dimension(:)            :: npartoftype
  integer(kind=int1), intent(in), dimension(:) :: itype
@@ -65,7 +64,7 @@ subroutine convert_to_grid(time,dat,ntypes,npartoftype,masstype,itype,ncolumns,f
  logical, intent(in)                          :: interpolateall
  integer, parameter :: iunit = 89
  integer            :: ierr,i,k,ncolsgrid,ivec,nvec,iloc,j,nzero
- integer            :: npixx,ntoti,ninterp
+ integer            :: npixx,ntoti,ninterp,isinktype
  character(len=40)  :: fmtstring
  character(len=64)  :: fmtstring1
 
@@ -159,9 +158,10 @@ subroutine convert_to_grid(time,dat,ntypes,npartoftype,masstype,itype,ncolumns,f
  !--set interpolation weights (w = m/(rho*h^ndim)
  !
  inormalise = inormalise_interpolations
+ isinktype = get_sink_type(ntypes)
  call set_interpolation_weights(weight,dat,itype,(iplotpartoftype .and. UseTypeInRenderings),&
       ninterp,npartoftype,masstype,ntypes,ncolumns,irho,ipmass,ih,ndim,iRescale,&
-      idensityweightedinterpolation,inormalise,units,unit_interp,required,.false.)
+      idensityweightedinterpolation,inormalise,units,unit_interp,required,.false.,isinktype)
  !
  !--set colours (just in case)
  !
@@ -678,7 +678,6 @@ end subroutine
 ! calculate max and min and mean values on grid
 !-----------------------------------------------
 subroutine minmaxmean_grid(datgrid,npixels,gridmin,gridmax,gridmean,nonzero)
- implicit none
  real, dimension(:,:,:), intent(in) :: datgrid
  integer, dimension(3), intent(in)  :: npixels
  real, intent(out)                  :: gridmin,gridmax,gridmean
@@ -707,16 +706,15 @@ subroutine minmaxmean_grid(datgrid,npixels,gridmin,gridmax,gridmean,nonzero)
        enddo
     enddo
  enddo
+ if (gridmin >= huge(gridmin)) gridmin = 0.
  gridmean = gridmean/product(npixels(1:3))
 
- return
 end subroutine minmaxmean_grid
 
 !----------------------------------------------------
 ! calculate max and min and mean values on grid (2D)
 !----------------------------------------------------
 subroutine minmaxmean_grid2D(datgrid,npixels,gridmin,gridmax,gridmean,nonzero)
- implicit none
  real, dimension(:,:), intent(in)   :: datgrid
  integer, dimension(2), intent(in)  :: npixels
  real, intent(out)                  :: gridmin,gridmax,gridmean
@@ -743,9 +741,9 @@ subroutine minmaxmean_grid2D(datgrid,npixels,gridmin,gridmax,gridmean,nonzero)
        gridmean = gridmean + dati
     enddo
  enddo
+ if (gridmin >= huge(gridmin)) gridmin = 0.
  gridmean = gridmean/product(npixels(1:2))
 
- return
 end subroutine minmaxmean_grid2D
 
 !-----------------------------------------------
@@ -753,7 +751,6 @@ end subroutine minmaxmean_grid2D
 ! (for vector quantities)
 !-----------------------------------------------
 subroutine minmaxmean_gridvec(datgridvec,npixels,jlen,gridmin,gridmax,gridmean)
- implicit none
  real, dimension(:,:,:,:), intent(in) :: datgridvec
  integer, dimension(3), intent(in)    :: npixels
  integer, intent(in)                  :: jlen
@@ -781,9 +778,9 @@ subroutine minmaxmean_gridvec(datgridvec,npixels,jlen,gridmin,gridmax,gridmean)
     enddo
  enddo
  !$omp end parallel do
+ where (gridmin >= huge(gridmin)) gridmin = 0.
  gridmean(1:jlen) = gridmean(1:jlen)/real(product(npixels(1:3)))
 
- return
 end subroutine minmaxmean_gridvec
 
 !-----------------------------------------------
@@ -791,7 +788,6 @@ end subroutine minmaxmean_gridvec
 ! (for vector quantities)
 !-----------------------------------------------
 subroutine minmaxmean_gridvec2D(datgridvec,npixels,jlen,gridmin,gridmax,gridmean)
- implicit none
  real, dimension(:,:,:), intent(in) :: datgridvec
  integer, dimension(2), intent(in)  :: npixels
  integer, intent(in)                :: jlen
@@ -819,14 +815,12 @@ subroutine minmaxmean_gridvec2D(datgridvec,npixels,jlen,gridmin,gridmax,gridmean
  !$omp end parallel do
  gridmean(1:jlen) = gridmean(1:jlen)/real(product(npixels(1:2)))
 
- return
 end subroutine minmaxmean_gridvec2D
 
 !----------------------------------------------------
 ! calculate max and min and mean values on particles
 !----------------------------------------------------
 subroutine minmaxmean_part(dat,weight,npart,partmin,partmax,partmean,nonzero)
- implicit none
  real, dimension(:,:), intent(in)   :: dat
  real, dimension(:), intent(in)     :: weight
  integer, intent(in)                :: npart
@@ -875,14 +869,12 @@ subroutine minmaxmean_part(dat,weight,npart,partmin,partmax,partmean,nonzero)
     partmean(:) = partmean(:)/real(np)
  endif
 
- return
 end subroutine minmaxmean_part
 
 !----------------------------------------------------
 ! calculate max and min and mean values on particles
 !----------------------------------------------------
 logical function iszero(partmin,partmax,ndim)
- implicit none
  real, dimension(:), intent(in) :: partmin,partmax
  integer, intent(in)            :: ndim
 

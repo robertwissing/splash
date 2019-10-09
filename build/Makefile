@@ -136,7 +136,7 @@ endif
 ifeq ($(SYSTEM), gfortran)
 #  gfortran compiler (part of gcc 4.x.x)
    FC= gfortran
-   FFLAGS= -O3 -frecord-marker=4
+   FFLAGS= -O3 -frecord-marker=4 -fPIC
    DBLFLAGS= -fdefault-real-8 -fdefault-double-8
    SYSTEMFILE= system_f2003.f90
    DEBUGFLAG= -Wall -Wextra -pedantic -g -frange-check -fcheck=all -fbacktrace \
@@ -175,7 +175,7 @@ ifeq ($(SYSTEM),ifort)
    FC= ifort
 #   FFLAGS= -O3 -nbs -i_dynamic
    FFLAGS= -O3 -nbs
-   OMPFLAGS= -openmp
+   OMPFLAGS= -qopenmp
    DBLFLAGS= -r8
    DEBUGFLAG= -C -g
    SYSTEMFILE= system_f2003.f90
@@ -657,6 +657,33 @@ OBJGRID2PDF= ${SRCGRID2PDF:.f90=.o}
 grid2pdf: checksystem $(OBJGRID2PDF)
 	$(FC) $(FFLAGS) -o $(BINDIR)/$@ $(OBJGRID2PDF)
 
+SRCLIB= sort.f90 asciiutils.f90 kernels.f90 timing.f90 geometry.f90 interpolation.f90 \
+      interpolate1D.f90 interpolate2D.f90 interpolate3D.F90 \
+      interpolate3D_geom.F90 interpolate3D_projection.F90 \
+      interpolate3D_proj_geom.F90 interpolate3D_opacity.f90 interpolate3D_xsec.f90 \
+      libsplash.f90
+OBJLIB1=${SRCLIB:.f90=.o}
+OBJLIB=${OBJLIB1:.F90=.o}
+
+.PHONY: libsplash
+libsplash: lib
+
+lib: $(OBJLIB)
+	$(FC) -shared -fPIC $(FFLAGS) $(FPPFLAGS) $(DBLFLAGS) $(OBJLIB) -o libsplash.so
+
+SRCLIBEXACT= plotlib_mock.f90 exact_shock.f90 exact_shock_sr.f90 exact_sedov.f90 \
+	exact_polytrope.f90 exact_toystar1D.f90 exact_toystar2D.f90 exact_gresho.f90 \
+	exact_mhdshock.f90 exact_rhoh.f90 exact_densityprofiles.f90 exact_torus.f90 \
+	exact_ringspread.f90 cubicsolve.f90 exact_dustywaves.f90 exact_rochelobe.f90 \
+	exact_Cshock.f90 exact_planetdisc.f90 exact_bondi.f90 \
+	libexact.f90
+OBJLIBEXACT=${SRCLIBEXACT:.f90=.o}
+OBJLIBEXACTALL=${OBJLIBEXACT:.F90=.o}
+
+.PHONY: libexact
+libexact: libexactcmd
+libexactcmd: checksystem $(OBJLIBEXACTALL)
+	$(FC) -shared -fPIC $(FFLAGS) $(FPPFLAGS) $(DBLFLAGS) $(OBJLIBEXACTALL) -o libexact.so
 
 checksystem:
    ifeq ($(KNOWN_SYSTEM), yes)
@@ -891,7 +918,7 @@ test-parse: $(PLOTLIB) asciiutils.o fparser.o parsetext.o $(TESTDIR)/test-parset
 include .depends
 
 clean:
-	rm -f *.o *.mod $(BINDIR)/?splash $(BINDIR)/splash
+	rm -f *.o *.mod $(BINDIR)/?splash $(BINDIR)/splash libsplash.so libexact.so
 
 cleangiza:
 	${MAKE} -C ../giza clean uninstall
