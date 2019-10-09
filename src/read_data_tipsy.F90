@@ -479,7 +479,7 @@ end subroutine read_data
 
 subroutine set_labels
   use labels, only:label,labelvec,labeltype,iamvec,&
-              ix,ivx,ih,irho,ipmass,imetals,iBfirst,iJfirst,itform,ipot,tipsylabel,ncolextra !,iutherm
+              ix,ivx,ih,irho,ipmass,imetals,idivb,iBfirst,iJfirst,itform,ipot,tipsylabel,ncolextra !,iutherm
   use settings_data, only:ndim,ndimV,ntypes,UseTypeInRenderings
   use geometry, only:labelcoord
   !use settings_units, only:units,unitslabel
@@ -529,7 +529,7 @@ endif
         iJfirst=ipot+i
 endif
  if (tipsylabel(i)=='DivB') then
-        idivB=ipot+i
+        idivb=ipot+i
 endif
   enddo
   itform = ipot+ncolextra+1
