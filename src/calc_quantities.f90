@@ -916,7 +916,7 @@ end subroutine calc_quantities
 !-----------------------------------------------------------------
 subroutine identify_calculated_quantity(labelcol,ncolumns,icolumn)
  use asciiutils,    only:lcase
- use labels,        only:irad,ike,ipr
+ use labels,        only:irad,ike,ipr,iutherm
  use settings_data, only:debugmode
  character(len=*), intent(in) :: labelcol
  integer, intent(in) :: ncolumns,icolumn
@@ -941,6 +941,11 @@ subroutine identify_calculated_quantity(labelcol,ncolumns,icolumn)
     if (ipr <= 0 .or. ipr > ncolumns) then
        ipr = icolumn
        if (debugmode) print "(1x,a,i2,a)",'identifying column ',icolumn,' as the pressure'
+    endif
+ case('u')
+    if (iutherm.le.0 .or. iutherm.gt.ncolumns) then
+       iutherm = icolumn
+       if (debugmode) print "(1x,a,i2,a)",'identifying column ',icolumn,' as the thermal energy'
     endif
  end select
 

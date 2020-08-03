@@ -140,9 +140,8 @@ subroutine submenu_particleplots(ichoose)
  character(len=2)    :: charntypes
  character(len=20)   :: substring1,substring2,substring3
  character(len=1000) :: fmtstring
- character(len=120)  :: contline
+ character(len=240)  :: contline
  logical :: ians
-
  iaction = ichoose
 
  !--we require some tricks with the format string to print only the actual number of

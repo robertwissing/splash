@@ -87,9 +87,9 @@ module filenames
  implicit none
  integer, parameter :: maxfile = 10001
  integer :: nfiles,nsteps,ifileopen,iposopen
- character(len=120), dimension(maxfile) :: rootname
- character(len=100) :: fileprefix
- character(len=120) :: defaultsfile,limitsfile,unitsfile,coloursfile
+ character(len=240), dimension(maxfile) :: rootname
+ character(len=200) :: fileprefix
+ character(len=240) :: defaultsfile,limitsfile,unitsfile,coloursfile
  integer, dimension(maxfile) :: nstepsinfile
  character(len=*), parameter :: tagline = &
   'SPLASH: A visualisation tool for SPH data (c)2004-2020 Daniel Price and contributors'

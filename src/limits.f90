@@ -138,7 +138,7 @@ subroutine read_limits(limitsfile,ierr)
  character(len=*), intent(in) :: limitsfile
  integer,         intent(out) :: ierr
  integer                      :: i,ncolsline
- character(len=120)           :: line
+ character(len=240)           :: line
  logical :: iexist
 
  ierr = 0
@@ -172,7 +172,6 @@ subroutine read_limits(limitsfile,ierr)
  enddo
  close(unit=54)
  return
-
 997 continue
  print*,trim(limitsfile),' not found'
  ierr = 1

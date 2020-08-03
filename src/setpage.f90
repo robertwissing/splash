@@ -477,7 +477,7 @@ subroutine plot_second_y_axis(yopts,just,iaxis,itransy,yscale,ylabeloffset,label
  character(len=*), intent(in), optional :: labely
  integer,          intent(in) :: just,iaxis,itransy
  character(len=10)  :: yoptsi
- character(len=120) :: labelyalt
+ character(len=240) :: labelyalt
  real :: xmin,xmax,ymin,ymax,yminalt,ymaxalt
 
  yoptsi = yopts

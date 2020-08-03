@@ -30,7 +30,7 @@ module shapes
  integer, parameter, private :: maxshapes = 32
  integer, parameter, private :: maxshapetype = 8
  integer :: nshapes
- integer, parameter, private :: lentext = 120
+ integer, parameter, private :: lentext = 240
 
  type shapedef
     integer :: itype

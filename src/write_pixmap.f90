@@ -196,7 +196,7 @@ subroutine write_pixmap_ppm(datpix,npixx,npixy,xmin,ymin,dx,datmin,datmax,label,
  real, intent(in) :: xmin,ymin,dx,datmin,datmax
  character(len=*), intent(in) :: label
  integer, intent(in) :: istep
- character(len=120) :: filename
+ character(len=240) :: filename
  real, dimension(3) :: rgbi,drgb
  real :: dati,ddatrange,datfraci,ftable
  integer :: ipix,jpix,ir,ib,ig,ierr,maxcolour,indexi
