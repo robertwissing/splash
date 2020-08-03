@@ -701,14 +701,21 @@ subroutine write_analysis(time,dat,ntot,ntypes,npartoftype,massoftype,iamtype,nc
        if (iplotpartoftype(itype)) then
           vals(1:ncolumns) = real(dat(j,1:ncolumns),kind=doub_prec)
           if (change_coordsys) call change_coords(vals,ncolumns,ndim,icoords,icoordsnew,x0,v0)
+          !if(vals(1)>0.0 .and. vals(1)<0.6 .and. vals(2)>-0.6 .and. vals(2)<0.6 .and. vals(3)>-0.6 .and. vals(3)<0.6) then
           nused = nused + 1
+          !endif
           do i=1,ncolumns
-             coltemp(i) = coltemp(i) + vals(i)
+             !if(vals(1)>0.0 .and. vals(1)<0.6 .and. vals(2)>-0.6 .and. vals(2)<0.6 .and. vals(3)>-0.6 .and. vals(3)<0.6) then
+                coltemp(i) = coltemp(i) + vals(i)
+             !else
+                !coltemp(i) = coltemp(i) + 0.0
+                !endif
           enddo
        endif
     enddo
     if (nused.gt.0) then
-       coltemp(:) = coltemp(:)/real(nused)       
+       coltemp(:) = coltemp(:)/real(nused)
+       !coltemp(:) = coltemp(:)
     else
        coltemp(:) = 0.
     endif
@@ -793,12 +800,14 @@ subroutine write_analysis(time,dat,ntot,ntypes,npartoftype,massoftype,iamtype,nc
           endif
           
           do i=1,ncolumns
-             rmsval(i) = rmsval(i) + voli*vals(i)**2
+             !rmsval(i) = rmsval(i) + voli*vals(i)**2
+             rmsval(i) = rmsval(i) + voli*vals(i)
           enddo
           totvol = totvol + voli
        endif
     enddo
-    coltemp(:) = real(sqrt(rmsval(:)/totvol))
+    coltemp(:) = real(rmsval(:)/totvol)
+    !coltemp(:) = real(sqrt(rmsval(:)/totvol))
     print "(1x,a,es9.2)",'volume = ',totvol
     !
     !--write output to screen/terminal
